@@ -15,7 +15,7 @@ import hubitat.helper.NetworkUtils
 @Field static final Integer MAX_FAST_PING = 20
 
 metadata {
-    definition(name:DRIVER_NAME, namespace:'dandanache', author:'Dan Danache', importUrl:'https://raw.githubusercontent.com/dan-danache/hubitat/main/lgtv-drivers/lgtv-with-webos.groovy') {
+    definition(name:DRIVER_NAME, namespace:'dandanache', author:'Dan Danache', importUrl:'https://codeberg.org/dan-danache/hubitat/raw/branch/main/lgtv-drivers/lgtv-with-webos.groovy') {
         capability 'Actuator'
         capability 'Initialize'
         capability 'Refresh'
@@ -277,14 +277,17 @@ void startActivity(String activityname) {
 void play() {
     log_debug '🎬 Play ...'
     utils_sendMessage([type:'request', uri:'ssap://media.controls/play'])
+    utils_sendEvent name:'transportStatus', value:'playing', descriptionText:'Media transport status is playing', type:'digital'
 }
 void pause() {
     log_debug '🎬 Pause ...'
     utils_sendMessage([type:'request', uri:'ssap://media.controls/pause'])
+    utils_sendEvent name:'transportStatus', value:'paused', descriptionText:'Media transport status is paused', type:'digital'
 }
 void stop() {
     log_debug '🎬 Stop ...'
     utils_sendMessage([type:'request', uri:'ssap://media.controls/stop'])
+    utils_sendEvent name:'transportStatus', value:'stopped', descriptionText:'Media transport status is stopped', type:'digital'
 }
 
 // capability.ImageCapture
@@ -462,6 +465,9 @@ void parse(String description) {
 
             // Ignore unsupported config keys and TV bind fails
             if (msg.payload?.errorText?.startsWith('Some keys are not allowed') || msg.payload?.errorText?.startsWith('com.webos.service.utp/bind returns invalid result')) return
+
+            // Live TV weird error
+            if (msg.payload?.errorText ==~ /^broadcastId = .* is already closed$/) return
 
             log_error "▶ Received error message: ${msg.payload?.errorText ? msg.payload?.errorText : msg.error}"
             return
@@ -741,7 +747,7 @@ private String utils_parseStatus(String message) {
 
 private String utils_parseForegroundAppInfo(List<Map> foregroundAppInfo) {
     String playState = foregroundAppInfo.find { it.windowId != '' }?.playState
-    if (foregroundAppInfo.size() > 1 && (playState == 'loaded' || playState == 'playing')) return 'playing'
+    if (playState == 'loaded' || playState == 'playing') return 'playing'
     return playState == 'paused' ? 'paused' : 'stopped'
 }
 
