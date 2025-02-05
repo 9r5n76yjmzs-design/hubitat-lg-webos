@@ -112,7 +112,4 @@ When the TV is turned on using its remote, it does not broadcast any message to 
 Have fun!
 
 ---
-[<img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" style="height: 40px !important;width: 162px !important">](https://www.buymeacoffee.com/dandanache)
-
-
-
+[<img src="https://codeberg.org/dan-danache/hubitat/raw/branch/main/bmac.png" alt="Buy Me A Coffee">](https://www.buymeacoffee.com/dandanache)
