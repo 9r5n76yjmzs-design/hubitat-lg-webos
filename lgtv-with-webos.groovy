@@ -741,7 +741,7 @@ void parse(String description) {
 // ===================================================================================================================
 
 private void log_debug(String message, String prefix = device.displayName) {
-    /*if (logLevel == '1') */log.debug "${prefix} ${message.uncapitalize()}"
+    if (logLevel == '1') log.debug "${prefix} ${message.uncapitalize()}"
 }
 private void log_info(String message, String prefix = device.displayName) {
     if (logLevel <= '2') log.info "${prefix} ${message.uncapitalize()}"
