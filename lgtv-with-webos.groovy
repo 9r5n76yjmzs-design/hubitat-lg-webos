@@ -14,7 +14,7 @@ import hubitat.helper.NetworkUtils
 import com.hubitat.app.ChildDeviceWrapper
 
 @Field static final String DRIVER_NAME = 'LGTV with webOS'
-@Field static final String DRIVER_VERSION = '1.6.0'
+@Field static final String DRIVER_VERSION = '1.6.1'
 
 @Field static final List<String> PICTURE_MODES = ['cinema', 'eco', 'expert1', 'expert2', 'game', 'normal', 'photo', 'sports', 'technicolor', 'vivid', 'hdrEffect', 'filmMaker', 'hdrCinema']
 @Field static final List<String> SOUND_MODES = ['aiSoundPlus', 'aiSound', 'standard', 'news', 'music', 'movie', 'sports', 'game']
@@ -56,9 +56,21 @@ metadata {
     command 'startWebPage', [[name:'URL*', type:'STRING', description:'URL to open in Web Browser']]
     command 'screenSaverOn'
     command 'screenSaverOff'
-    command 'pushRemoteButtons', [[name:'Remote buttons sequence*', type:'STRING']]
+    command 'pushRemoteButtons', [[name:'TV Remote buttons sequence <a href="https://codeberg.org/dan-danache/hubitat/src/branch/main/lgtv-drivers/README.md#tv-remote-control" target="_blank" title="Learn more about this">📖</a> *', type:'STRING']]
 
     preferences {
+        input(
+            name:'helpInfo', type:'hidden',
+            title:"""
+            <div style="min-height:55px; background:transparent url('https://codeberg.org/dan-danache/hubitat/raw/branch/main/lgtv-drivers/img/lgtv.webp') no-repeat left center;background-size:auto 55px;padding-left:65px">
+                LGTV with webOS <small>v${DRIVER_VERSION}</small><br>
+                <small><div>
+                • <a href="https://codeberg.org/dan-danache/hubitat/src/branch/main/lgtv-drivers/README.md" target="_blank">driver details</a><br>
+                • <a href="https://community.hubitat.com/t/release-lgtv-with-webos/148892" target="_blank">community page</a><br>
+                </div></small>
+            </div>
+            """
+        )
         input(
             name:'logLevel', type:'enum', title:'Log verbosity', required:true,
             description: 'Choose the messages that appear in the "Logs" section',
@@ -471,7 +483,7 @@ void register() {
                 ]
             ]
         ]
-    ])
+    ], false)
 }
 
 void subscribe() {
