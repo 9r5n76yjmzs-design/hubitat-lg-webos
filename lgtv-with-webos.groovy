@@ -1,3 +1,8 @@
+/**
+ * LGTV with webOS
+ *
+ * @see https://codeberg.org/dan-danache/hubitat/src/branch/main/lgtv-drivers
+ */
 import groovy.json.JsonBuilder
 import groovy.transform.CompileStatic
 import groovy.transform.Field
@@ -5,6 +10,8 @@ import groovy.transform.Field
 import hubitat.device.HubAction
 import hubitat.device.Protocol
 import hubitat.helper.NetworkUtils
+
+import com.hubitat.app.ChildDeviceWrapper
 
 @Field static final String DRIVER_NAME = 'LGTV with webOS'
 @Field static final String DRIVER_VERSION = '1.6.0'
@@ -49,6 +56,7 @@ metadata {
     command 'startWebPage', [[name:'URL*', type:'STRING', description:'URL to open in Web Browser']]
     command 'screenSaverOn'
     command 'screenSaverOff'
+    command 'pushRemoteButtons', [[name:'Remote buttons sequence*', type:'STRING']]
 
     preferences {
         input(
@@ -85,6 +93,11 @@ metadata {
             ],
             defaultValue: '5'
         )
+        input(
+            name:'simulateRemote', type:'bool', title:'Simulate TV Remote', required:true,
+            description:'Allows you to simulate TV Remote button pushes (creates a child device)',
+            defaultValue:false
+        )
     }
 }
 
@@ -105,7 +118,7 @@ void updated(boolean auto = false) {
 
     if (logLevel == null) {
         logLevel = '1'
-        device.updateSetting('logLevel', [value:logLevel, type:'enum'])
+        device.updateSetting 'logLevel', [value:logLevel, type:'enum']
     }
     if (logLevel == '1') runIn 1800, 'logsOff'
     log_info "🛠️ logLevel = ${logLevel}"
@@ -118,15 +131,31 @@ void updated(boolean auto = false) {
 
     if (useSSL == null) {
         useSSL = true
-        device.updateSetting('useSSL', [value:useSSL, type:'enum'])
+        device.updateSetting 'useSSL', [value:useSSL, type:'bool']
     }
     log_info "🛠️ useSSL = ${useSSL}"
 
     if (pingInterval == null) {
         pingInterval = '5'
-        device.updateSetting('pingInterval', [value:pingInterval, type:'enum'])
+        device.updateSetting 'pingInterval', [value:pingInterval, type:'enum']
     }
     log_info "🛠️ pingInterval = ${pingInterval} min"
+
+    if (simulateRemote == null) {
+        simulateRemote = false
+        device.updateSetting 'simulateRemote', [value:simulateRemote, type:'bool']
+    }
+    log_info "🛠️ simulateRemote = ${simulateRemote}"
+    ChildDeviceWrapper childDevice = getChildDevice "${device.deviceNetworkId}-Remote"
+    if (simulateRemote) {
+        childDevice = childDevice ?: addChildDevice('dandanache', 'LGTV Remote', "${device.deviceNetworkId}-Remote", [name:'LGTV Remote', label:"${device.displayName} - Remote", isComponent:true])
+        log_info "🛠️ TV Remote child device = ${childDevice}"
+    } else {
+        if (childDevice) {
+            log_debug "🛠️ Removing child device ${childDevice} ..."
+            deleteChildDevice "${device.deviceNetworkId}-Remote"
+        }
+    }
 
     // Schedule priodic device ping
     if (pingInterval != '0') schedule "0 0/${pingInterval} * ? * * *", 'pingDevice'
@@ -179,9 +208,9 @@ void refresh() {
 // capability.Switch
 void on() {
     log_debug '🎬 Powering on ...'
-    util_wakeOnLan(getDataValue('wifiMacAddress'))
-    util_wakeOnLan(getDataValue('wiredMacAddress'))
-    if (ipAddr) util_wakeOnLan(getMACFromIP(ipAddr))
+    util_wakeOnLan getDataValue('wifiMacAddress')
+    util_wakeOnLan getDataValue('wiredMacAddress')
+    if (ipAddr) util_wakeOnLan getMACFromIP(ipAddr)
 
     // Start fast pinging the IP for a maximum of MAX_FAST_PING times
     runIn 1, 'fastPing', [data:[currentRetry:0]]
@@ -194,7 +223,7 @@ private void fastPing(Map data) {
     }
 
     log_debug "Fast pinging ${ipAddr}: ${data.currentRetry} / ${MAX_FAST_PING} ..."
-    if (NetworkUtils.ping(ipAddr, 1)?.packetsReceived > 0) connect()
+    if (NetworkUtils.ping(ipAddr, 1)?.packetsReceived > 0 && "${device.currentValue('switch', true)}" != 'on') connect()
 
     // Keep fast-pinging until switch changes to 'on' or MAX_FAST_PING limit is reached
     runIn 1, 'fastPing', [data:data]
@@ -368,6 +397,22 @@ void screenSaverOff() {
     log_debug '🎬 Stopping screen saver ...'
     utils_sendMessage([type:'request', uri:'ssap://system.launcher/close', payload:[id:'com.webos.app.screensaver']])
 }
+void pushRemoteButtons(String buttonSequence) {
+    if (!simulateRemote) {
+        log_info 'The "Simulate TV Remote" option is currently disabled in the "Preferences" tab'
+        state.remove 'remoteButtonSequence'
+        return
+    }
+    if ("${device.currentValue('switch', true)}" != 'on') {
+        log_info 'Cannot push TV Remote buttons as device is not switched on'
+        state.remove 'remoteButtonSequence'
+        return
+    }
+
+    log_debug "🎬 Pushing TV Remote buttons: ${buttonSequence} ..."
+    state.remoteButtonSequence = buttonSequence.toUpperCase()
+    utils_sendMessage([type:'request', uri:'ssap://com.webos.service.networkinput/getPointerInputSocket'])
+}
 
 // ===================================================================================================================
 // Websocket helpers
@@ -380,7 +425,7 @@ void connect() {
     }
 
     // A connection is already in progress
-    if ("${device.currentValue('websocket')}" == 'connecting') {
+    if ("${device.currentValue('websocket', true)}" == 'connecting') {
         log_debug 'Connection already in progress'
         return
     }
@@ -427,6 +472,33 @@ void register() {
             ]
         ]
     ])
+}
+
+void subscribe() {
+
+    // Setup subscriptions
+    utils_sendMessage([type:'subscribe', uri:'ssap://audio/getStatus'])
+    utils_sendMessage([type:'subscribe', uri:'ssap://tv/getCurrentChannel'])
+    utils_sendMessage([type:'subscribe', uri:'ssap://com.webos.applicationManager/getForegroundAppInfo'])
+    utils_sendMessage([type:'subscribe', uri:'ssap://com.webos.media/getForegroundAppInfo'])
+    utils_sendMessage([type:'subscribe', uri:'ssap://com.webos.service.tvpower/power/getPowerState'])
+    utils_sendMessage([type:'subscribe', uri:'ssap://settings/getSystemSettings', payload:[category:'picture', keys:['pictureMode']]])
+    utils_sendMessage([type:'subscribe', uri:'ssap://settings/getSystemSettings', payload:[category:'sound', keys:['soundMode', 'soundOutput']]])
+
+    // First time with talk with this device
+    if (!getDataValue('modelName')) {
+
+        // Enable Wake on LAN
+        log_debug 'Enabling Wake On LAN (WOL) ...'
+        utils_sendMessage([type:'request', uri:'ssap://settings/setSystemSettings', payload:[category:'network', settings: [wolwowlOnOff:'true']]])
+
+        // Get some device information that never changes
+        utils_sendMessage([type:'request', uri:'ssap://system/getSystemInfo'])
+        utils_sendMessage([type:'request', uri:'ssap://com.webos.service.connectionmanager/getinfo'])
+
+        // Send a notification on TV
+        deviceNotification "<b>Mesage from ${location.hub.name}</b><br>Well done! Configuration is now complete 👍"
+    }
 }
 
 // ===================================================================================================================
@@ -476,9 +548,6 @@ void parse(String description) {
         case 'hello':
             log_debug '▶ Proper protocol has been observed. Starting authentication ...'
 
-            // Update "websocket" and "switch" attributes
-            utils_sendEvent name:'switch', value:'on', descriptionText:'Power is on', type:'physical'
-            utils_sendEvent name:'websocket', value:'online', descriptionText:'Websocket is online', type:'physical'
 
             // Start registration
             runIn 1, 'register'
@@ -489,32 +558,15 @@ void parse(String description) {
             log_debug '▶ Authentication complete. Oh yeah!'
             state.pk = msg.payload['client-key']
 
+            // Update "websocket" and "switch" attributes
+            utils_sendEvent name:'websocket', value:'online', descriptionText:'Websocket is online', type:'physical'
+            utils_sendEvent name:'switch', value:'on', descriptionText:'Power is on', type:'physical'
+
             // Setup subscriptions
-            utils_sendMessage([type:'subscribe', uri:'ssap://audio/getStatus'])
-            utils_sendMessage([type:'subscribe', uri:'ssap://tv/getCurrentChannel'])
-            utils_sendMessage([type:'subscribe', uri:'ssap://com.webos.applicationManager/getForegroundAppInfo'])
-            utils_sendMessage([type:'subscribe', uri:'ssap://com.webos.media/getForegroundAppInfo'])
-            utils_sendMessage([type:'subscribe', uri:'ssap://com.webos.service.tvpower/power/getPowerState'])
-            utils_sendMessage([type:'subscribe', uri:'ssap://settings/getSystemSettings', payload:[category:'picture', keys:['pictureMode']]])
-            utils_sendMessage([type:'subscribe', uri:'ssap://settings/getSystemSettings', payload:[category:'sound', keys:['soundMode', 'soundOutput']]])
-
-            // First time with talk with this device
-            if (!getDataValue('modelName')) {
-
-                // Enable Wake on LAN
-                log_debug 'Enabling Wake On LAN (WOL) ...'
-                utils_sendMessage([type:'request', uri:'ssap://settings/setSystemSettings', payload:[category:'network', settings: [wolwowlOnOff:'true']]])
-
-                // Get some device information that never changes
-                utils_sendMessage([type:'request', uri:'ssap://system/getSystemInfo'])
-                utils_sendMessage([type:'request', uri:'ssap://com.webos.service.connectionmanager/getinfo'])
-
-                // Send a notification on TV
-                deviceNotification "<b>Mesage from ${location.hub.name}</b><br>Well done! Configuration is now complete 👍"
-            }
+            runIn 1, 'subscribe'
 
             // Auto-sync device state with Hubitat
-            refresh()
+            runIn 7, 'refresh'
             return
 
         // TV sent a response to a command sent by us
@@ -632,6 +684,12 @@ void parse(String description) {
                 case { contains it, [configs:null] }:
                     utils_dataValue 'platformVersion', payload.configs['tv.nyx.platformVersion']
                     return
+
+                // ssap://com.webos.service.networkinput/getPointerInputSocket (request)
+                case { contains it, [socketPath:null] }:
+                    getChildDevice("${device.deviceNetworkId}-Remote").pushButtons(payload.socketPath, "${state.remoteButtonSequence}")
+                    state.remove 'remoteButtonSequence'
+                    return
                 
                 // ssap://tv/executeOneShot
                 case { contains it, [imageUri:null] }:
@@ -670,17 +728,17 @@ void parse(String description) {
 // Logging helpers (something like this should be part of the SDK and not implemented by each driver)
 // ===================================================================================================================
 
-private void log_debug(String message) {
-    if (logLevel == '1') log.debug "${device.displayName} ${message.uncapitalize()}"
+private void log_debug(String message, String prefix = device.displayName) {
+    /*if (logLevel == '1') */log.debug "${prefix} ${message.uncapitalize()}"
 }
-private void log_info(String message) {
-    if (logLevel <= '2') log.info "${device.displayName} ${message.uncapitalize()}"
+private void log_info(String message, String prefix = device.displayName) {
+    if (logLevel <= '2') log.info "${prefix} ${message.uncapitalize()}"
 }
-private void log_warn(String message) {
-    if (logLevel <= '3') log.warn "${device.displayName} ${message.uncapitalize()}"
+private void log_warn(String message, String prefix = device.displayName) {
+    if (logLevel <= '3') log.warn "${prefix} ${message.uncapitalize()}"
 }
-private void log_error(String message) {
-    log.error "${device.displayName} ${message.uncapitalize()}"
+private void log_error(String message, String prefix = device.displayName) {
+    log.error "${prefix} ${message.uncapitalize()}"
 }
 
 // ===================================================================================================================
@@ -695,12 +753,12 @@ private void utils_sendMessage(Map message, boolean checkState = true) {
         return
     }
 
-    if (checkState && "${device.currentValue('switch')}" != 'on') {
+    if (checkState && "${device.currentValue('switch', true)}" != 'on') {
         log_info 'Device is not switched on. Command not sent.'
         return
     }
 
-    if (checkState && "${device.currentValue('websocket')}" != 'online') {
+    if (checkState && "${device.currentValue('websocket', true)}" != 'online') {
         log_info 'Websocket is not connected anymore. Connecting now ...'
         runIn 1, 'connect'
         return

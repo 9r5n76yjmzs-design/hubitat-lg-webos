@@ -28,6 +28,11 @@ If you prefer not to use HPM, you can manually install the drivers by importing 
 1. Enter `https://codeberg.org/dan-danache/hubitat/raw/branch/main/lgtv-drivers/lgtv-with-webos.groovy` it in the URL field.
 1. Click **Import**, then click **OK** and the code should load in the editor.
 1. Click **Save** in the top right.
+1. Go to **Drivers Code**.
+1. Click **Add driver**, then select **Import** from the hamburger menu in the top right.
+1. Enter `https://codeberg.org/dan-danache/hubitat/raw/branch/main/lgtv-drivers/component/lgtv-remote.groovy` it in the URL field.
+1. Click **Import**, then click **OK** and the code should load in the editor.
+1. Click **Save** in the top right.
 
 For more information on installing custom drivers, refer to the [Official Documentation](https://docs2.hubitat.com/en/how-to/install-custom-drivers).
 
@@ -97,6 +102,13 @@ The following commands are available:
 - Start, Pause, Stop the current file loaded in the Media Player app
 - Start Video - Play the specified video file in Media Player app
 - Start Web Page - Open the specified URL in Web Browser app
+
+### TV Remote control
+- Orchestrate and execute (simulate) TV Remote button pushes. Example buttons sequence: `MENU WAIT:2000 LEFT ENTER WAIT:1500 DOWN DOWN DOWN BACK`.
+
+  See list of all possible buttons [in the source code](component/lgtv-remote.groovy).
+
+  By default, a pause of 350 ms is added between button pushes. You can override this by using the special 'WAIT:xxx' instruction, where xxx = time, in milliseconds, to wait before sending the next button push.
 
 ### Notifications
 - Device Notification - Display toast or an alert notifications to the TV screen
