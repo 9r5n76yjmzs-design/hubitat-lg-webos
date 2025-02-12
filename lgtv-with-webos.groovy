@@ -139,6 +139,7 @@ void updated(boolean auto = false) {
     if (ipAddr != null) {
         device.deviceNetworkId = ipAddr.tokenize('.').collect { String.format('%02X', it.toInteger()) }.join()
         connect()
+        log_info "🛠️ IP address = ${ipAddr}"
     }
 
     if (useSSL == null) {
