@@ -133,7 +133,7 @@ void updated(boolean auto = false) {
         device.updateSetting 'logLevel', [value:logLevel, type:'enum']
     }
     if (logLevel == '1') runIn 1800, 'logsOff'
-    log_info "🛠️ logLevel = ${logLevel}"
+    log_info "🛠️ Log verbosity = ${logLevel}"
 
     // Update device network Id
     if (ipAddr != null) {
@@ -145,19 +145,19 @@ void updated(boolean auto = false) {
         useSSL = true
         device.updateSetting 'useSSL', [value:useSSL, type:'bool']
     }
-    log_info "🛠️ useSSL = ${useSSL}"
+    log_info "🛠️ Enable SSL = ${useSSL}"
 
     if (pingInterval == null) {
         pingInterval = '5'
         device.updateSetting 'pingInterval', [value:pingInterval, type:'enum']
     }
-    log_info "🛠️ pingInterval = ${pingInterval} min"
+    log_info "🛠️ Ping interval = ${pingInterval} min"
 
     if (simulateRemote == null) {
         simulateRemote = false
         device.updateSetting 'simulateRemote', [value:simulateRemote, type:'bool']
     }
-    log_info "🛠️ simulateRemote = ${simulateRemote}"
+    log_info "🛠️ Simulate TV Remote = ${simulateRemote}"
     ChildDeviceWrapper childDevice = getChildDevice "${device.deviceNetworkId}-Remote"
     if (simulateRemote) {
         childDevice = childDevice ?: addChildDevice('dandanache', 'LGTV Remote', "${device.deviceNetworkId}-Remote", [name:'LGTV Remote', label:"${device.displayName} - Remote", isComponent:true])
