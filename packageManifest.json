@@ -1,10 +1,10 @@
 {
     "packageName": "LGTV with webOS",
-    "version": "1.6.1",
-    "releaseNotes": "v1.6.1\n - Fix register new device not working - @spotty\n - Fix debug log level - @salieri",
+    "version": "1.7.0",
+    "releaseNotes": "v1.7.0\n - Add \"Set Picture\" command to control brightness, contrast, color, backlight, and pictureMode - @Biggsyboi, @mluck\n - Fix \"mute\" attribute for TV that do not support \"volumeStatus\" - @mluck",
     "minimumHEVersion": "2.1.9",
     "author": "Dan Danache (@dandanache)",
-    "dateReleased": "2025-02-11",
+    "dateReleased": "2025-02-20",
     "documentationLink": "https://codeberg.org/dan-danache/hubitat/src/branch/main/lgtv-drivers/README.md",
     "communityLink": "https://community.hubitat.com/t/release-lgtv-with-webos/148892",
     "payPalUrl": "https://www.buymeacoffee.com/dandanache",
@@ -17,7 +17,7 @@
             "name": "LGTV with webOS",
             "description": "Driver to control LG TV devices using webOS websockets.",
             "namespace": "dandanache",
-            "location": "https://codeberg.org/dan-danache/hubitat/raw/tag/lgtv_1.6.1/lgtv-drivers/lgtv-with-webos.groovy",
+            "location": "https://codeberg.org/dan-danache/hubitat/raw/tag/lgtv_1.7.0/lgtv-drivers/lgtv-with-webos.groovy",
             "required": true
         },
         {
@@ -25,7 +25,7 @@
             "name": "LGTV Remote",
             "description": "Component driver to simulate TV Remote button pushes.",
             "namespace": "dandanache",
-            "location": "https://codeberg.org/dan-danache/hubitat/raw/tag/lgtv_1.6.1/lgtv-drivers/component/lgtv-remote.groovy",
+            "location": "https://codeberg.org/dan-danache/hubitat/raw/tag/lgtv_1.7.0/lgtv-drivers/component/lgtv-remote.groovy",
             "required": true
         }
     ]

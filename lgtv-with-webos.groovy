@@ -14,7 +14,7 @@ import hubitat.helper.NetworkUtils
 import com.hubitat.app.ChildDeviceWrapper
 
 @Field static final String DRIVER_NAME = 'LGTV with webOS'
-@Field static final String DRIVER_VERSION = '1.6.1'
+@Field static final String DRIVER_VERSION = '1.7.0'
 
 @Field static final List<String> PICTURE_MODES = ['cinema', 'eco', 'expert1', 'expert2', 'game', 'normal', 'photo', 'sports', 'technicolor', 'vivid', 'hdrEffect', 'filmMaker', 'hdrCinema']
 @Field static final List<String> SOUND_MODES = ['aiSoundPlus', 'aiSound', 'standard', 'news', 'music', 'movie', 'sports', 'game']
@@ -38,6 +38,10 @@ metadata {
         attribute 'websocket', 'enum', ['connecting', 'online', 'offline']
         attribute 'channelName', 'string'
         attribute 'screen', 'enum', ['on', 'off', 'standby', 'screensaver']
+        attribute 'pictureBrightness', 'number'
+        attribute 'pictureContrast', 'number'
+        attribute 'pictureColor', 'number'
+        attribute 'pictureBacklight', 'number'
         attribute 'pictureMode', 'enum', PICTURE_MODES
         attribute 'soundOutput', 'enum', SOUND_OUTPUT
         attribute 'soundMode', 'enum', SOUND_MODES
@@ -50,7 +54,13 @@ metadata {
     command 'setChannel', [[name:'Channel number*', type:'STRING']]
     command 'screenOn'
     command 'screenOff'
-    command 'setPictureMode', [[name:'Mode*', type:'ENUM', description:'Select picture mode', constraints:PICTURE_MODES.sort()]]
+    command 'setPicture', [
+        [name:'Brightness', type:'NUMBER', description:'Picture brightness (1 to 100)'],
+        [name:'Contrast', type:'NUMBER', description:'Picture contrast (1 to 100)'],
+        [name:'Color', type:'NUMBER', description:'Picture color (1 to 100)'],
+        [name:'Backlight', type:'NUMBER', description:'Picture backlight (1 to 100)'],
+        [name:'Mode', type:'ENUM', description:'Select picture mode', constraints:PICTURE_MODES.sort()]
+    ]
     command 'setSoundOutput', [[name:'Output*', type:'ENUM', description:'Select sound output', constraints:SOUND_OUTPUT.sort()]]
     command 'startVideo', [[name:'URL*', type:'STRING', description:'URL of video file to play']]
     command 'startWebPage', [[name:'URL*', type:'STRING', description:'URL to open in Web Browser']]
@@ -194,7 +204,7 @@ void logsOff() {
 void initialize() {
     state.lastTx = 0
     state.lastRx = 0
-    connect()
+    connect(true)
 }
 
 // capability.Refresh
@@ -213,7 +223,6 @@ void refresh() {
 
     // https://github.com/JPersson77/LGTVCompanion/blob/master/Docs/Commandline.md
     // https://github.com/chros73/bscpylgtv/blob/master/docs/available_settings_CX.md
-    //utils_sendMessage([type:'request', uri:'ssap://settings/getSystemSettings', payload:[category:'picture', keys: ['brightness', 'backlight', 'contrast', 'color', 'pictureMode']]])
     //utils_sendMessage([type:'request', uri:'ssap://settings/getSystemSettings', payload:[category:'sound', keys: ['soundMode']]])
     //utils_sendMessage([type:'request', uri:'ssap://config/getConfigs', payload:[configNames:['audio.*']]])
 }
@@ -377,9 +386,15 @@ void screenOff() {
     log_debug '🎬 Turning screen off ...'
     utils_sendMessage([type:'request', uri:'ssap://com.webos.service.tvpower/power/turnOffScreen', payload:[standbyMode:'active']])
 }
-void setPictureMode(String mode) {
-    log_debug "🎬 Setting picture mode to: [${mode}] ..."
-    utils_sendMessage([type:'request', uri:'ssap://settings/setSystemSettings', payload:[category:'picture', settings: [pictureMode:mode]]])
+void setPicture(BigDecimal brightness, BigDecimal contrast = null, BigDecimal color = null, BigDecimal backlight = null, String mode = null) {
+    log_debug "🎬 Setting picture to: brightness=${brightness}, contrast=${contrast}, color=${color}, backlight=${backlight}, mode=${mode}] ..."
+    Map<String, String> settings = [:]
+    if (brightness && brightness >= 1 && brightness <= 100) settings.put 'brightness', brightness.intValue().toString()
+    if (contrast && contrast >= 1 && contrast <= 100) settings.put 'contrast', contrast.intValue().toString()
+    if (color && color >= 1 && color <= 100) settings.put 'color', color.intValue().toString()
+    if (backlight && backlight >= 1 && backlight <= 100) settings.put 'backlight', backlight.intValue().toString()
+    if (mode) settings.put 'pictureMode', mode
+    if (settings.size() > 0) utils_sendMessage([type:'request', uri:'ssap://settings/setSystemSettings', payload:[category:'picture', settings:settings]])
 }
 void setSoundOutput(String output) {
     log_debug "🎬 Setting sound output to: [${output}] ..."
@@ -431,14 +446,14 @@ void pushRemoteButtons(String buttonSequence) {
 // Websocket helpers
 // ===================================================================================================================
 
-void connect() {
+void connect(boolean force = false) {
     if (!ipAddr) {
         log_warn 'Device IP address not set in Preferences tab. Make sure you are using DHCP reservation for the TV\'s IP address!'
         return
     }
 
     // A connection is already in progress
-    if ("${device.currentValue('websocket', true)}" == 'connecting') {
+    if (!force && "${device.currentValue('websocket', true)}" == 'connecting') {
         log_debug 'Connection already in progress'
         return
     }
@@ -495,7 +510,7 @@ void subscribe() {
     utils_sendMessage([type:'subscribe', uri:'ssap://com.webos.applicationManager/getForegroundAppInfo'])
     utils_sendMessage([type:'subscribe', uri:'ssap://com.webos.media/getForegroundAppInfo'])
     utils_sendMessage([type:'subscribe', uri:'ssap://com.webos.service.tvpower/power/getPowerState'])
-    utils_sendMessage([type:'subscribe', uri:'ssap://settings/getSystemSettings', payload:[category:'picture', keys:['pictureMode']]])
+    utils_sendMessage([type:'subscribe', uri:'ssap://settings/getSystemSettings', payload:[category:'picture', keys:['brightness', 'contrast', 'color', 'backlight', 'pictureMode']]])
     utils_sendMessage([type:'subscribe', uri:'ssap://settings/getSystemSettings', payload:[category:'sound', keys:['soundMode', 'soundOutput']]])
 
     // First time with talk with this device
@@ -561,7 +576,6 @@ void parse(String description) {
         case 'hello':
             log_debug '▶ Proper protocol has been observed. Starting authentication ...'
 
-
             // Start registration
             runIn 1, 'register'
             return
@@ -591,10 +605,17 @@ void parse(String description) {
                 case { contains it, [volumeStatus:null] }:
                     int volume = payload.volumeStatus.volume
                     String mute = payload.volumeStatus.muteStatus ? 'muted' : 'unmuted'
-                    String soundOutput = payload.volumeStatus.soundOutput
+                    String soundOutput = payload.volumeStatus.soundOutput ?: ''
                     utils_sendEvent name:'volume', value:volume, unit:'%', descriptionText:"Sound volume is ${volume}%", type:type
                     utils_sendEvent name:'mute', value:mute, descriptionText:"Sound is ${mute}", type:type
-                    if (soundOutput) utils_sendEvent name:'soundOutput', value:soundOutput, descriptionText:"Sound output is ${soundOutput}", type:type
+                    utils_sendEvent name:'soundOutput', value:soundOutput, descriptionText:"Sound output is ${soundOutput}", type:type
+                    return
+
+                case { contains it, [mute:null, volume:null] }:
+                    int volume = payload.volume
+                    String mute = payload.mute ? 'muted' : 'unmuted'
+                    utils_sendEvent name:'volume', value:volume, unit:'%', descriptionText:"Sound volume is ${volume}%", type:type
+                    utils_sendEvent name:'mute', value:mute, descriptionText:"Sound is ${mute}", type:type
                     return
 
                 // ssap://tv/getCurrentChannel (subscription)
@@ -619,7 +640,15 @@ void parse(String description) {
 
                 // ssap://settings/getSystemSettings (subscription)
                 case { contains it, [category:'picture'] }:
-                    String pictureMode = payload.settings?.pictureMode
+                    String pictureBrightness = payload.settings?.brightness ?: ''
+                    String pictureContrast = payload.settings?.contrast ?: ''
+                    String pictureColor = payload.settings?.color ?: ''
+                    String pictureBacklight = payload.settings?.backlight ?: ''
+                    String pictureMode = payload.settings?.pictureMode ?: ''
+                    utils_sendEvent name:'pictureBrightness', value:pictureBrightness, unit:'%', descriptionText:"Picture brightness is ${pictureBrightness}%", type:type
+                    utils_sendEvent name:'pictureContrast', value:pictureContrast, unit:'%', descriptionText:"Picture contrast is ${pictureContrast}%", type:type
+                    utils_sendEvent name:'pictureColor', value:pictureColor, unit:'%', descriptionText:"Picture color is ${pictureColor}%", type:type
+                    utils_sendEvent name:'pictureBacklight', value:pictureBacklight, unit:'%', descriptionText:"Picture backlight is ${pictureBacklight}%", type:type
                     utils_sendEvent name:'pictureMode', value:pictureMode, descriptionText:"Picture mode is ${pictureMode}", type:type
                     return
 
@@ -717,8 +746,13 @@ void parse(String description) {
 
                 // ssap://audio/getVolume (request)
                 case { contains it, [soundOutput:null] }:
-                    String soundOutput = payload.soundOutput
+                    String soundOutput = payload.soundOutput ?: ''
                     utils_sendEvent name:'soundOutput', value:soundOutput, descriptionText:"Sound output is ${soundOutput}", type:type
+
+                    if (payload.containsKey('muteStatus')) {
+                        String mute = payload.muteStatus ? 'muted' : 'unmuted'
+                        utils_sendEvent name:'mute', value:mute, descriptionText:"Sound is ${mute}", type:type
+                    }
                     return
 
                 // Other messages we don't care about
@@ -786,7 +820,7 @@ private void utils_sendMessage(Map message, boolean checkState = true) {
 }
 
 private void utils_sendEvent(Map event) {
-    if (event.value == null) return
+    if (event.value == null || event.value == '') return
     if ("${device.currentValue(event.name, true)}" != "${event.value}") {
         log_info "${event.descriptionText} [${event.type}]"
     } else {
