@@ -14,7 +14,7 @@ import hubitat.helper.NetworkUtils
 import com.hubitat.app.ChildDeviceWrapper
 
 @Field static final String DRIVER_NAME = 'LGTV with webOS'
-@Field static final String DRIVER_VERSION = '1.7.0'
+@Field static final String DRIVER_VERSION = '1.7.1'
 
 @Field static final List<String> PICTURE_MODES = ['cinema', 'eco', 'expert1', 'expert2', 'game', 'normal', 'photo', 'sports', 'technicolor', 'vivid', 'hdrEffect', 'filmMaker', 'hdrCinema']
 @Field static final List<String> SOUND_MODES = ['aiSoundPlus', 'aiSound', 'standard', 'news', 'music', 'movie', 'sports', 'game']
@@ -569,6 +569,9 @@ void parse(String description) {
             // Live TV weird error
             if (msg.payload?.errorText ==~ /^broadcastId = .* is already closed$/) return
 
+            // Service not supported on some (old) devices
+            if (msg.error == '404 no such service or method') return
+
             log_error "▶ Received error message: ${msg.payload?.errorText ? msg.payload?.errorText : msg.error}"
             return
 
@@ -793,8 +796,6 @@ private void log_error(String message, String prefix = device.displayName) {
 // ===================================================================================================================
 
 private void utils_sendMessage(Map message, boolean checkState = true) {
-    log_debug "◀ Sending websocket messages: ${message}"
-
     if (!ipAddr) {
         log_warn 'Device IP address not set in Preferences tab. Make sure you are using DHCP reservation for the TV\'s IP Address!'
         return
@@ -815,6 +816,8 @@ private void utils_sendMessage(Map message, boolean checkState = true) {
     state.lastTx = now()
     message.id = "hubitat_${now()}"
     message.sourceId = 'hubitat.hub'
+
+    log_debug "◀ Sending websocket messages: ${message}"
     String payload = new JsonBuilder(message)
     interfaces.webSocket.sendMessage(payload)
 }
