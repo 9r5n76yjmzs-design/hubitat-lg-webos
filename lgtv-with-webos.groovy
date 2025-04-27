@@ -61,6 +61,7 @@ metadata {
         [name:'Backlight', type:'NUMBER', description:'Picture backlight (1 to 100)'],
         [name:'Mode', type:'ENUM', description:'Select picture mode', constraints:PICTURE_MODES.sort()]
     ]
+    command 'setPingInterval', [[name:'Interval*', type:'NUMBER', description:'Choose how often to check if the TV was turned on using the remote (in minutes, 0=disabled)']]
     command 'setSoundOutput', [[name:'Output*', type:'ENUM', description:'Select sound output', constraints:SOUND_OUTPUT.sort()]]
     command 'startVideo', [[name:'URL*', type:'STRING', description:'URL of video file to play']]
     command 'startWebPage', [[name:'URL*', type:'STRING', description:'URL to open in Web Browser']]
@@ -102,20 +103,6 @@ metadata {
             defaultValue:true
         )
         input(
-            name:'pingInterval', type:'enum', title:'Ping interval', required:true,
-            description: 'Choose how often to check if the TV was turned on using the remote',
-            options: [
-                 '0' : 'Off',
-                 '1' : '1 minute',
-                 '2' : '2 minutes',
-                 '3' : '3 minutes',
-                 '5' : '5 minutes',
-                '10' : '10 minutes',
-                '20' : '20 minutes'
-            ],
-            defaultValue: '5'
-        )
-        input(
             name:'simulateRemote', type:'bool', title:'Simulate TV Remote', required:true,
             description:'Allows you to simulate TV Remote button pushes (creates a child device)',
             defaultValue:false
@@ -131,12 +118,12 @@ void installed() {
     state.activities = [:]
     utils_sendEvent name:'switch', value:'off', descriptionText:'Power initialized to off', type:'digital'
     utils_sendEvent name:'websocket', value:'offline', descriptionText:'Websocket initialized to offline', type:'digital'
+    setPingInterval(5)
 }
 
 // Called when the "Save Preferences" button is clicked
 void updated(boolean auto = false) {
     log_info "Saving preferences${auto ? ' (auto)' : ''} ..."
-    unschedule()
 
     if (logLevel == null) {
         logLevel = '1'
@@ -158,12 +145,6 @@ void updated(boolean auto = false) {
     }
     log_info "🛠️ Enable SSL = ${useSSL}"
 
-    if (pingInterval == null) {
-        pingInterval = '5'
-        device.updateSetting 'pingInterval', [value:pingInterval, type:'enum']
-    }
-    log_info "🛠️ Ping interval = ${pingInterval} min"
-
     if (simulateRemote == null) {
         simulateRemote = false
         device.updateSetting 'simulateRemote', [value:simulateRemote, type:'bool']
@@ -180,9 +161,24 @@ void updated(boolean auto = false) {
         }
     }
 
-    // Schedule priodic device ping
-    if (pingInterval != '0') schedule "0 0/${pingInterval} * ? * * *", 'pingDevice'
 }
+
+
+void setPingInterval(BigDecimal pingInterval) {
+    if (pingInterval < 0) {
+        log_error("Invalid ping interval specified: ${pingInterval} minutes")
+        return
+    }
+
+    // Schedule periodic device ping
+    unschedule('pingDevice')
+    if (pingInterval == 0) {
+        log_debug("Ping schedule disabled")
+    } else {
+        schedule "0 0/${pingInterval.toInteger()} * ? * * *", 'pingDevice'
+    }
+}
+
 
 void pingDevice() {
     if (!ipAddr || "${device.currentValue('websocket', true)}" == 'online') return
@@ -735,7 +731,7 @@ void parse(String description) {
                     getChildDevice("${device.deviceNetworkId}-Remote").pushButtons(payload.socketPath, "${state.remoteButtonSequence}")
                     state.remove 'remoteButtonSequence'
                     return
-                
+
                 // ssap://tv/executeOneShot
                 case { contains it, [imageUri:null] }:
                     String image = payload.imageUri
