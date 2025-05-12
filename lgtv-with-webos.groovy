@@ -14,7 +14,7 @@ import hubitat.helper.NetworkUtils
 import com.hubitat.app.ChildDeviceWrapper
 
 @Field static final String DRIVER_NAME = 'LGTV with webOS'
-@Field static final String DRIVER_VERSION = '1.7.1'
+@Field static final String DRIVER_VERSION = '1.8.0'
 
 @Field static final List<String> PICTURE_MODES = ['cinema', 'eco', 'expert1', 'expert2', 'game', 'normal', 'photo', 'sports', 'technicolor', 'vivid', 'hdrEffect', 'filmMaker', 'hdrCinema']
 @Field static final List<String> SOUND_MODES = ['aiSoundPlus', 'aiSound', 'standard', 'news', 'music', 'movie', 'sports', 'game']
@@ -45,6 +45,7 @@ metadata {
         attribute 'pictureMode', 'enum', PICTURE_MODES
         attribute 'soundOutput', 'enum', SOUND_OUTPUT
         attribute 'soundMode', 'enum', SOUND_MODES
+        attribute 'pingInterval', 'number'
     }
 
     command 'deviceNotification', [
@@ -61,7 +62,7 @@ metadata {
         [name:'Backlight', type:'NUMBER', description:'Picture backlight (1 to 100)'],
         [name:'Mode', type:'ENUM', description:'Select picture mode', constraints:PICTURE_MODES.sort()]
     ]
-    command 'setPingInterval', [[name:'Interval*', type:'NUMBER', description:'Choose how often to check if the TV was turned on using the remote (in minutes, 0=disabled)']]
+    command 'setPingInterval', [[name:'Interval*', type:'NUMBER', description:'How often to check if the TV was turned on using the remote (in minutes, 0=disabled)']]
     command 'setSoundOutput', [[name:'Output*', type:'ENUM', description:'Select sound output', constraints:SOUND_OUTPUT.sort()]]
     command 'startVideo', [[name:'URL*', type:'STRING', description:'URL of video file to play']]
     command 'startWebPage', [[name:'URL*', type:'STRING', description:'URL to open in Web Browser']]
@@ -118,7 +119,7 @@ void installed() {
     state.activities = [:]
     utils_sendEvent name:'switch', value:'off', descriptionText:'Power initialized to off', type:'digital'
     utils_sendEvent name:'websocket', value:'offline', descriptionText:'Websocket initialized to offline', type:'digital'
-    setPingInterval(5)
+    setPingInterval 5
 }
 
 // Called when the "Save Preferences" button is clicked
@@ -160,32 +161,30 @@ void updated(boolean auto = false) {
             deleteChildDevice "${device.deviceNetworkId}-Remote"
         }
     }
-
 }
-
-
 void setPingInterval(BigDecimal pingInterval) {
     if (pingInterval < 0) {
         log_error("Invalid ping interval specified: ${pingInterval} minutes")
         return
     }
 
+    // Update attribute
+    int newValue = pingInterval.toInteger()
+    utils_sendEvent name:'pingInterval', value:newValue, unit:'minute', descriptionText:"Ping interval is ${newValue} min ${newValue == 0 ? ' (disabled)' : ''}", type:'digital'
+
     // Schedule periodic device ping
     unschedule('pingDevice')
-    if (pingInterval == 0) {
-        log_debug("Ping schedule disabled")
-    } else {
-        schedule "0 0/${pingInterval.toInteger()} * ? * * *", 'pingDevice'
-    }
+    if (newValue == 0) return
+    schedule "0 0/${newValue} * ? * * *", 'pingDevice'
+
+    // Ping right now
+    pingDevice()
 }
-
-
 void pingDevice() {
     if (!ipAddr || "${device.currentValue('websocket', true)}" == 'online') return
     log_debug "Pinging ${ipAddr} ..."
     if (NetworkUtils.ping(ipAddr, 1)?.packetsReceived > 0) connect()
 }
-
 void logsOff() {
     log_info '⏲️ Automatically reverting log level to "Info"'
     device.updateSetting 'logLevel', [value:'2', type:'enum']
@@ -461,11 +460,9 @@ void connect(boolean force = false) {
     // Update "websocket" attribute
     utils_sendEvent name:'websocket', value:'connecting', descriptionText:'Websocket is connecting', type:'digital'
 }
-
 void disconnect() {
     try { interfaces.webSocket.close() } catch (e) { }
 }
-
 void register() {
     if (state.pk) {
         utils_sendMessage([type:'register', payload:['client-key':state.pk]], false)
@@ -497,7 +494,6 @@ void register() {
         ]
     ], false)
 }
-
 void subscribe() {
 
     // Setup subscriptions
@@ -543,7 +539,6 @@ void webSocketStatus(String message) {
     // Update "websocket" attribute
     utils_sendEvent name:'websocket', value:websocket, descriptionText:"Websocket is ${websocket}", type:'physical'
 }
-
 void parse(String description) {
     log_debug "▶ Received message: ${description}"
     state.lastRx = now()
@@ -817,7 +812,6 @@ private void utils_sendMessage(Map message, boolean checkState = true) {
     String payload = new JsonBuilder(message)
     interfaces.webSocket.sendMessage(payload)
 }
-
 private void utils_sendEvent(Map event) {
     if (event.value == null || event.value == '') return
     if ("${device.currentValue(event.name, true)}" != "${event.value}") {
@@ -827,13 +821,11 @@ private void utils_sendEvent(Map event) {
     }
     sendEvent event
 }
-
 private void utils_dataValue(String key, String value) {
     if (value == null || value == '') return
     log_debug "Update data value: ${key}=${value}"
     updateDataValue key, value
 }
-
 private String utils_parseStatus(String message) {
     switch (message) {
         case 'status: open': return 'online'
@@ -848,20 +840,17 @@ private String utils_parseStatus(String message) {
         default: return 'offline'
     }
 }
-
 private String utils_parseForegroundAppInfo(List<Map> foregroundAppInfo) {
     String playState = foregroundAppInfo.find { it.windowId != '' }?.playState
     if (playState == 'loaded' || playState == 'playing') return 'playing'
     return playState == 'paused' ? 'paused' : 'stopped'
 }
-
 private void util_wakeOnLan(String macAddr) {
     if (macAddr == null || macAddr == '') return
     String cmd = "wake on lan ${macAddr.replaceAll(':', '').toUpperCase()}"
     log_debug "◀ Sending LAN command: ${cmd}"
     sendHubCommand(new HubAction(cmd, Protocol.LAN))
 }
-
 void updateActivities() {
     List<String> activities = state.activities*.value.sort()
     utils_sendEvent name:'activities', value:new JsonBuilder(activities), descriptionText:"Supported activities is ${activities}", type:type
