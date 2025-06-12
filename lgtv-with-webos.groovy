@@ -14,7 +14,7 @@ import hubitat.helper.NetworkUtils
 import com.hubitat.app.ChildDeviceWrapper
 
 @Field static final String DRIVER_NAME = 'LGTV with webOS'
-@Field static final String DRIVER_VERSION = '1.8.0'
+@Field static final String DRIVER_VERSION = '1.8.1'
 
 @Field static final List<String> PICTURE_MODES = ['cinema', 'eco', 'expert1', 'expert2', 'game', 'normal', 'photo', 'sports', 'technicolor', 'vivid', 'hdrEffect', 'filmMaker', 'hdrCinema']
 @Field static final List<String> SOUND_MODES = ['aiSoundPlus', 'aiSound', 'standard', 'news', 'music', 'movie', 'sports', 'game']
@@ -449,16 +449,22 @@ void connect(boolean force = false) {
 
     // A connection is already in progress
     if (!force && "${device.currentValue('websocket', true)}" == 'connecting') {
-        log_debug 'Connection already in progress'
-        return
+
+        // Don't start a new connection if websocket status is in 'connecting' state for less than 25 seconds
+        int timeoutIn = state.containsKey('lastWx') ? state.lastWx + 25000 - now() : 0
+        if (timeoutIn > 0) {
+            log_debug "✋ Another connection is already in progress; it will time out in ${timeoutIn/1000} seconds"
+            return
+        }
     }
 
-    log_debug "Connecting to ${ipAddr} ..."
+    log_debug "▲ Connecting to ${ipAddr} ${force ? '(forced) ' : ''}..."
     disconnect()
     interfaces.webSocket.connect(useSSL ? "wss://${ipAddr}:3001/" : "ws://${ipAddr}:3000/", headers: ['Content-Type': 'application/json'], ignoreSSLIssues: true)
 
     // Update "websocket" attribute
     utils_sendEvent name:'websocket', value:'connecting', descriptionText:'Websocket is connecting', type:'digital'
+    state.lastWx = now()
 }
 void disconnect() {
     try { interfaces.webSocket.close() } catch (e) { }

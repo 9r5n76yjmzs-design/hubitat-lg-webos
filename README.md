@@ -2,10 +2,6 @@
 
 Hubitat driver to control LG TV devices using webOS websockets.
 
-Tested devices:
-- LG OLED evo C2 55 inch (OLED55C21LA, 2022) - webOSTV 7.0 / 23.20.56
-- LG OLED evo C2 48 inch (OLED48C21LA, 2022) - webOSTV 7.0 / 23.20.56
-
 ## Installation
 There are two ways to install the drivers: using Hubitat Package Manager (HPM) or manually importing the driver code.
 
