@@ -14,7 +14,7 @@ import hubitat.helper.NetworkUtils
 import com.hubitat.app.ChildDeviceWrapper
 
 @Field static final String DRIVER_NAME = 'LGTV with webOS'
-@Field static final String DRIVER_VERSION = '1.8.1'
+@Field static final String DRIVER_VERSION = '1.8.2'
 
 @Field static final List<String> PICTURE_MODES = ['cinema', 'eco', 'expert1', 'expert2', 'game', 'normal', 'photo', 'sports', 'technicolor', 'vivid', 'hdrEffect', 'filmMaker', 'hdrCinema']
 @Field static final List<String> SOUND_MODES = ['aiSoundPlus', 'aiSound', 'standard', 'news', 'music', 'movie', 'sports', 'game']
@@ -629,6 +629,7 @@ void parse(String description) {
                 // ssap://com.webos.applicationManager/getForegroundAppInfo (subscription)
                 case { contains it, [appId:'', processId:'', windowId:''] }:
                     utils_sendEvent name:'switch', value:'off', descriptionText:'Power is off', type:type
+                    utils_sendEvent name:'currentActivity', value:'off', descriptionText:"Current activity is off", type:type
                     disconnect()
                     return
 

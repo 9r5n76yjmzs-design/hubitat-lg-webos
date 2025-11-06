@@ -1,10 +1,10 @@
 {
     "packageName": "LGTV with webOS",
-    "version": "1.8.1",
-    "releaseNotes": "v1.8.1\n - Fix situation where websocket remains in \"connecting\" status - @mluck",
+    "version": "1.8.2",
+    "releaseNotes": "v1.8.2\n - Change current activity to \"off\" when device is turned off - @ady.adrianu",
     "minimumHEVersion": "2.1.9",
     "author": "Dan Danache (@dandanache)",
-    "dateReleased": "2025-06-12",
+    "dateReleased": "2025-11-06",
     "documentationLink": "https://codeberg.org/dan-danache/hubitat/src/branch/main/lgtv-drivers/README.md",
     "communityLink": "https://community.hubitat.com/t/release-lgtv-with-webos/148892",
     "payPalUrl": "https://www.buymeacoffee.com/dandanache",
@@ -17,7 +17,7 @@
             "name": "LGTV with webOS",
             "description": "Driver to control LG TV devices using webOS websockets.",
             "namespace": "dandanache",
-            "location": "https://codeberg.org/dan-danache/hubitat/raw/tag/lgtv_1.8.1/lgtv-drivers/lgtv-with-webos.groovy",
+            "location": "https://codeberg.org/dan-danache/hubitat/raw/tag/lgtv_1.8.2/lgtv-drivers/lgtv-with-webos.groovy",
             "required": true
         },
         {
@@ -25,7 +25,7 @@
             "name": "LGTV Remote",
             "description": "Component driver to simulate TV Remote button pushes.",
             "namespace": "dandanache",
-            "location": "https://codeberg.org/dan-danache/hubitat/raw/tag/lgtv_1.8.1/lgtv-drivers/component/lgtv-remote.groovy",
+            "location": "https://codeberg.org/dan-danache/hubitat/raw/tag/lgtv_1.8.2/lgtv-drivers/component/lgtv-remote.groovy",
             "required": true
         }
     ]
