@@ -6,7 +6,7 @@
 import groovy.transform.Field
 
 @Field static final String DRIVER_NAME = 'LGTV Remote'
-@Field static final String DRIVER_VERSION = '1.8.2'
+@Field static final String DRIVER_VERSION = '1.8.3'
 @Field static final List<String> BUTTONS = [
     'LEFT',
     'RIGHT',

@@ -14,7 +14,7 @@ import hubitat.helper.NetworkUtils
 import com.hubitat.app.ChildDeviceWrapper
 
 @Field static final String DRIVER_NAME = 'LGTV with webOS'
-@Field static final String DRIVER_VERSION = '1.8.2'
+@Field static final String DRIVER_VERSION = '1.8.3'
 
 @Field static final List<String> PICTURE_MODES = ['cinema', 'eco', 'expert1', 'expert2', 'game', 'normal', 'photo', 'sports', 'technicolor', 'vivid', 'hdrEffect', 'filmMaker', 'hdrCinema']
 @Field static final List<String> SOUND_MODES = ['aiSoundPlus', 'aiSound', 'standard', 'news', 'music', 'movie', 'sports', 'game']
@@ -211,10 +211,10 @@ void refresh() {
     utils_sendMessage([type:'request', uri:'ssap://tv/getCurrentChannel'])
 
     // These values rarely change, so we only request them on demand
-    utils_sendMessage([type:'request', uri:'ssap://system/getSystemInfo'])
     utils_sendMessage([type:'request', uri:'ssap://com.webos.service.update/getCurrentSWInformation'])
     utils_sendMessage([type:'request', uri:'ssap://settings/getSystemSettings', payload:[category:'network', keys: ['deviceName']]])
     utils_sendMessage([type:'request', uri:'ssap://config/getConfigs', payload:[configNames:['tv.nyx.*']]])
+    utils_sendMessage([type:'request', uri:'ssap://com.webos.service.connectionmanager/getinfo'])
 
     // https://github.com/JPersson77/LGTVCompanion/blob/master/Docs/Commandline.md
     // https://github.com/chros73/bscpylgtv/blob/master/docs/available_settings_CX.md
@@ -500,7 +500,7 @@ void register() {
         ]
     ], false)
 }
-void subscribe() {
+void subscribe(Map data = false) {
 
     // Setup subscriptions
     utils_sendMessage([type:'subscribe', uri:'ssap://audio/getStatus'])
@@ -511,16 +511,11 @@ void subscribe() {
     utils_sendMessage([type:'subscribe', uri:'ssap://settings/getSystemSettings', payload:[category:'picture', keys:['brightness', 'contrast', 'color', 'backlight', 'pictureMode']]])
     utils_sendMessage([type:'subscribe', uri:'ssap://settings/getSystemSettings', payload:[category:'sound', keys:['soundMode', 'soundOutput']]])
 
-    // First time with talk with this device
-    if (!getDataValue('modelName')) {
+    if (data.firstTime) {
 
         // Enable Wake on LAN
-        log_debug 'Enabling Wake On LAN (WOL) ...'
-        utils_sendMessage([type:'request', uri:'ssap://settings/setSystemSettings', payload:[category:'network', settings: [wolwowlOnOff:'true']]])
-
-        // Get some device information that never changes
-        utils_sendMessage([type:'request', uri:'ssap://system/getSystemInfo'])
-        utils_sendMessage([type:'request', uri:'ssap://com.webos.service.connectionmanager/getinfo'])
+        log_debug '🎬 Enabling Wake On LAN (WOL) ...'
+        utils_sendMessage([type:'request', uri:'ssap://settings/setSystemSettings', payload:[category:'network', settings: [wolwowlOnOff:'true']]], false)
 
         // Send a notification on TV
         deviceNotification "<b>Mesage from ${location.hub.name}</b><br>Well done! Configuration is now complete 👍"
@@ -558,7 +553,7 @@ void parse(String description) {
     switch (msg.type) {
 
         // TV sent an error message. Oh noes!
-        case 'error':
+     case 'error':
 
             // Ignore unsupported config keys and TV bind fails
             if (msg.payload?.errorText?.startsWith('Some keys are not allowed') || msg.payload?.errorText?.startsWith('com.webos.service.utp/bind returns invalid result')) return
@@ -570,27 +565,28 @@ void parse(String description) {
             if (msg.error == '404 no such service or method') return
 
             log_error "▶ Received error message: ${msg.payload?.errorText ? msg.payload?.errorText : msg.error}"
-            return
+        return
 
         // Hello (request)
         case 'hello':
             log_debug '▶ Proper protocol has been observed. Starting authentication ...'
 
-            // Start registration
-            runIn 1, 'register'
+            // Ask for device information (required on WebOS 33.20.66+)
+            // @see https://github.com/home-assistant-libs/aiowebostv/pull/501
+            utils_sendMessage([type:'request', uri:'ssap://system/getSystemInfo'], false)
             return
 
         // Register (request)
         case 'registered':
             log_debug '▶ Authentication complete. Oh yeah!'
-            state.pk = msg.payload['client-key']
 
             // Update "websocket" and "switch" attributes
             utils_sendEvent name:'websocket', value:'online', descriptionText:'Websocket is online', type:'physical'
             utils_sendEvent name:'switch', value:'on', descriptionText:'Power is on', type:'physical'
 
             // Setup subscriptions
-            runIn 1, 'subscribe'
+            runIn 1, 'subscribe', [data:[firstTime:!state.containsKey('pk')]]
+            state.pk = msg.payload['client-key']
 
             // Auto-sync device state with Hubitat
             runIn 7, 'refresh'
@@ -714,6 +710,9 @@ void parse(String description) {
                 case { contains it, [modelName:null] }:
                     utils_dataValue 'modelName', payload.modelName
                     utils_dataValue 'receiverType', payload.receiverType
+
+                    // Auto-start registration
+                    runIn 1, 'register'
                     return
 
                 // ssap://com.webos.service.connectionmanager/getinfo (request)
@@ -809,6 +808,8 @@ private void utils_sendMessage(Map message, boolean checkState = true) {
         runIn 1, 'connect'
         return
     }
+
+    if (!message.containsKey('payload')) message.payload = [:]
 
     // Send websocket message
     state.lastTx = now()
