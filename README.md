@@ -120,4 +120,22 @@ When the TV is turned on using its remote, it does not broadcast any message to 
 Have fun!
 
 ---
+
+## Upstream Attribution and Project Provenance
+
+This project is a maintained fork of **LGTV with webOS**, originally developed by **Dan Danache**.
+
+- **Original repository:** https://codeberg.org/dan-danache/hubitat
+- **Original source directory:** `lgtv-drivers/`
+- **Original author:** Dan Danache
+- **License:** The Unlicense (public domain)
+
+The driver was extracted from the upstream repository using `git-filter-repo --subdirectory-filter lgtv-drivers`, preserving the relevant development history. Git commit identifiers were rewritten during extraction.
+
+This fork is intended to support LG televisions running **webOS TV 23 and later**, with independently maintained compatibility updates and diagnostic improvements.
+
+The original project and its contributors retain full credit for their work. This fork is independently maintained and is not affiliated with or endorsed by the original author.
+
+See [LICENSE](LICENSE) for the original public-domain license terms.
+
 [<img src="https://codeberg.org/dan-danache/hubitat/raw/branch/main/bmac.png" alt="Buy Me A Coffee">](https://www.buymeacoffee.com/dandanache)
