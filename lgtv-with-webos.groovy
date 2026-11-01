@@ -1,8 +1,13 @@
 /**
  * LGTV with webOS
  *
- * @see https://codeberg.org/dan-danache/hubitat/src/branch/main/lgtv-drivers
+ * Maintained by Michael Dailous & Weft for webOS TV 23 and later.
+ * Originally developed by Dan Danache.
+ *
+ * @see https://github.com/9r5n76yjmzs-design/hubitat-lg-webos
  */
+import com.hubitat.app.ChildDeviceWrapper
+
 import groovy.json.JsonBuilder
 import groovy.transform.CompileStatic
 import groovy.transform.Field
@@ -11,10 +16,8 @@ import hubitat.device.HubAction
 import hubitat.device.Protocol
 import hubitat.helper.NetworkUtils
 
-import com.hubitat.app.ChildDeviceWrapper
-
 @Field static final String DRIVER_NAME = 'LGTV with webOS'
-@Field static final String DRIVER_VERSION = '1.8.3'
+@Field static final String DRIVER_VERSION = '2.0.0'
 
 @Field static final List<String> PICTURE_MODES = ['cinema', 'eco', 'expert1', 'expert2', 'game', 'normal', 'photo', 'sports', 'technicolor', 'vivid', 'hdrEffect', 'filmMaker', 'hdrCinema']
 @Field static final List<String> SOUND_MODES = ['aiSoundPlus', 'aiSound', 'standard', 'news', 'music', 'movie', 'sports', 'game']
@@ -22,7 +25,7 @@ import com.hubitat.app.ChildDeviceWrapper
 @Field static final Integer MAX_FAST_PING = 20
 
 metadata {
-    definition(name:DRIVER_NAME, namespace:'dandanache', author:'Dan Danache', importUrl:'https://codeberg.org/dan-danache/hubitat/raw/branch/main/lgtv-drivers/lgtv-with-webos.groovy') {
+    definition(name:DRIVER_NAME, namespace:'dailous', author:'Michael Dailous & Weft', importUrl:'https://raw.githubusercontent.com/9r5n76yjmzs-design/hubitat-lg-webos/main/lgtv-with-webos.groovy') {
         capability 'Actuator'
         capability 'Initialize'
         capability 'Refresh'
@@ -68,16 +71,16 @@ metadata {
     command 'startWebPage', [[name:'URL*', type:'STRING', description:'URL to open in Web Browser']]
     command 'screenSaverOn'
     command 'screenSaverOff'
-    command 'pushRemoteButtons', [[name:'TV Remote buttons sequence <a href="https://codeberg.org/dan-danache/hubitat/src/branch/main/lgtv-drivers/README.md#tv-remote-control" target="_blank" title="Learn more about this">📖</a> *', type:'STRING']]
+    command 'pushRemoteButtons', [[name:'TV Remote buttons sequence <a href="https://github.com/9r5n76yjmzs-design/hubitat-lg-webos/blob/main/README.md#tv-remote-control" target="_blank" title="Learn more about this">📖</a> *', type:'STRING']]
 
     preferences {
         input(
             name:'helpInfo', type:'hidden',
             title:"""
-            <div style="min-height:55px; background:transparent url('https://codeberg.org/dan-danache/hubitat/raw/branch/main/lgtv-drivers/img/lgtv.webp') no-repeat left center;background-size:auto 55px;padding-left:65px">
+            <div style="min-height:55px; background:transparent url('https://raw.githubusercontent.com/9r5n76yjmzs-design/hubitat-lg-webos/main/img/lgtv.webp') no-repeat left center;background-size:auto 55px;padding-left:65px">
                 LGTV with webOS <small>v${DRIVER_VERSION}</small><br>
                 <small><div>
-                • <a href="https://codeberg.org/dan-danache/hubitat/src/branch/main/lgtv-drivers/README.md" target="_blank">driver details</a><br>
+                • <a href="https://github.com/9r5n76yjmzs-design/hubitat-lg-webos/blob/main/README.md" target="_blank">driver details</a><br>
                 • <a href="https://community.hubitat.com/t/release-lgtv-with-webos/148892" target="_blank">community page</a><br>
                 </div></small>
             </div>
@@ -153,7 +156,7 @@ void updated(boolean auto = false) {
     log_info "🛠️ Simulate TV Remote = ${simulateRemote}"
     ChildDeviceWrapper childDevice = getChildDevice "${device.deviceNetworkId}-Remote"
     if (simulateRemote) {
-        childDevice = childDevice ?: addChildDevice('dandanache', 'LGTV Remote', "${device.deviceNetworkId}-Remote", [name:'LGTV Remote', label:"${device.displayName} - Remote", isComponent:true])
+        childDevice = childDevice ?: addChildDevice('dailous', 'LGTV Remote', "${device.deviceNetworkId}-Remote", [name:'LGTV Remote', label:"${device.displayName} - Remote", isComponent:true])
         log_info "🛠️ TV Remote child device = ${childDevice}"
     } else {
         if (childDevice) {
@@ -482,20 +485,7 @@ void register() {
             manifest: [
                 appVersion: '1.1',
                 manifestVersion: 1,
-                permissions: ['LAUNCH', 'LAUNCH_WEBAPP', 'APP_TO_APP', 'CLOSE', 'TEST_OPEN', 'TEST_PROTECTED', 'CONTROL_AUDIO', 'CONTROL_DISPLAY', 'CONTROL_INPUT_JOYSTICK', 'CONTROL_INPUT_MEDIA_RECORDING', 'CONTROL_INPUT_MEDIA_PLAYBACK', 'CONTROL_INPUT_TV', 'CONTROL_POWER', 'READ_APP_STATUS', 'READ_CURRENT_CHANNEL', 'READ_INPUT_DEVICE_LIST', 'READ_NETWORK_STATE', 'READ_RUNNING_APPS', 'READ_TV_CHANNEL_LIST', 'WRITE_NOTIFICATION_TOAST', 'READ_POWER_STATE', 'READ_COUNTRY_INFO', 'READ_SETTINGS', 'CONTROL_TV_SCREEN', 'CONTROL_TV_STANBY', 'CONTROL_FAVORITE_GROUP', 'CONTROL_USER_INFO', 'CHECK_BLUETOOTH_DEVICE', 'CONTROL_BLUETOOTH', 'CONTROL_TIMER_INFO', 'STB_INTERNAL_CONNECTION', 'CONTROL_RECORDING', 'READ_RECORDING_STATE', 'WRITE_RECORDING_LIST', 'READ_RECORDING_LIST', 'READ_RECORDING_SCHEDULE', 'WRITE_RECORDING_SCHEDULE', 'READ_STORAGE_DEVICE_LIST', 'READ_TV_PROGRAM_INFO', 'CONTROL_BOX_CHANNEL', 'READ_TV_ACR_AUTH_TOKEN', 'READ_TV_CONTENT_STATE', 'READ_TV_CURRENT_TIME', 'ADD_LAUNCHER_CHANNEL', 'SET_CHANNEL_SKIP', 'RELEASE_CHANNEL_SKIP', 'CONTROL_CHANNEL_BLOCK', 'DELETE_SELECT_CHANNEL', 'CONTROL_CHANNEL_GROUP', 'SCAN_TV_CHANNELS', 'CONTROL_TV_POWER', 'CONTROL_WOL'],
-                signatures: [[
-                    signatureVersion: 1,
-                    signature: 'eyJhbGdvcml0aG0iOiJSU0EtU0hBMjU2Iiwia2V5SWQiOiJ0ZXN0LXNpZ25pbmctY2VydCIsInNpZ25hdHVyZVZlcnNpb24iOjF9.hrVRgjCwXVvE2OOSpDZ58hR+59aFNwYDyjQgKk3auukd7pcegmE2CzPCa0bJ0ZsRAcKkCTJrWo5iDzNhMBWRyaMOv5zWSrthlf7G128qvIlpMT0YNY+n/FaOHE73uLrS/g7swl3/qH/BGFG2Hu4RlL48eb3lLKqTt2xKHdCs6Cd4RMfJPYnzgvI4BNrFUKsjkcu+WD4OO2A27Pq1n50cMchmcaXadJhGrOqH5YmHdOCj5NSHzJYrsW0HPlpuAx/ECMeIZYDh6RMqaFM2DXzdKX9NmmyqzJ3o/0lkk/N97gfVRLW5hA29yeAwaCViZNCP8iC9aO0q9fQojoa7NQnAtw==',
-                ]],
-                signed: [
-                    created: '20140509',
-                    appId: 'com.lge.test',
-                    vendorId: 'com.lge',
-                    localizedAppNames: ['':'LG Remote App', 'ko-KR':'리모컨 앱', 'zxx-XX':'ЛГ Rэмotэ AПП'],
-                    localizedVendorNames: ['': 'LG Electronics'],
-                    permissions: ['TEST_SECURE', 'CONTROL_INPUT_TEXT', 'CONTROL_MOUSE_AND_KEYBOARD', 'READ_INSTALLED_APPS', 'READ_LGE_SDX', 'READ_NOTIFICATIONS', 'SEARCH', 'WRITE_SETTINGS', 'WRITE_NOTIFICATION_ALERT', 'CONTROL_POWER', 'READ_CURRENT_CHANNEL', 'READ_RUNNING_APPS', 'READ_UPDATE_INFO', 'UPDATE_FROM_REMOTE_APP', 'READ_LGE_TV_INPUT_EVENTS', 'READ_TV_CURRENT_TIME'],
-                    serial: '2f930e2d2cfe083771f68e4fe7bb07'
-                ]
+                permissions: ['LAUNCH', 'LAUNCH_WEBAPP', 'APP_TO_APP', 'CLOSE', 'TEST_OPEN', 'TEST_PROTECTED', 'CONTROL_AUDIO', 'CONTROL_DISPLAY', 'CONTROL_INPUT_JOYSTICK', 'CONTROL_INPUT_MEDIA_RECORDING', 'CONTROL_INPUT_MEDIA_PLAYBACK', 'CONTROL_INPUT_TV', 'CONTROL_POWER', 'READ_APP_STATUS', 'READ_CURRENT_CHANNEL', 'READ_INPUT_DEVICE_LIST', 'READ_NETWORK_STATE', 'READ_RUNNING_APPS', 'READ_TV_CHANNEL_LIST', 'WRITE_NOTIFICATION_TOAST', 'READ_POWER_STATE', 'READ_COUNTRY_INFO', 'READ_SETTINGS', 'CONTROL_TV_SCREEN', 'CONTROL_TV_STANBY', 'CONTROL_FAVORITE_GROUP', 'CONTROL_USER_INFO', 'CHECK_BLUETOOTH_DEVICE', 'CONTROL_BLUETOOTH', 'CONTROL_TIMER_INFO', 'STB_INTERNAL_CONNECTION', 'CONTROL_RECORDING', 'READ_RECORDING_STATE', 'WRITE_RECORDING_LIST', 'READ_RECORDING_LIST', 'READ_RECORDING_SCHEDULE', 'WRITE_RECORDING_SCHEDULE', 'READ_STORAGE_DEVICE_LIST', 'READ_TV_PROGRAM_INFO', 'CONTROL_BOX_CHANNEL', 'READ_TV_ACR_AUTH_TOKEN', 'READ_TV_CONTENT_STATE', 'READ_TV_CURRENT_TIME', 'ADD_LAUNCHER_CHANNEL', 'SET_CHANNEL_SKIP', 'RELEASE_CHANNEL_SKIP', 'CONTROL_CHANNEL_BLOCK', 'DELETE_SELECT_CHANNEL', 'CONTROL_CHANNEL_GROUP', 'SCAN_TV_CHANNELS', 'CONTROL_TV_POWER', 'CONTROL_WOL', 'READ_INSTALLED_APPS', 'READ_UPDATE_INFO', 'CONTROL_INPUT_TEXT', 'CONTROL_MOUSE_AND_KEYBOARD']
             ]
         ]
     ], false)
@@ -541,10 +531,26 @@ void webSocketStatus(String message) {
     utils_sendEvent name:'websocket', value:websocket, descriptionText:"Websocket is ${websocket}", type:'physical'
 }
 void parse(String description) {
-    log_debug "▶ Received message: ${description}"
+    // Avoid logging raw messages: registration responses may include persistent client keys.
     state.lastRx = now()
 
     Map msg = parseJson(description)
+    String responseId = msg.id?.toString()
+    Map pending = state.diagnosticRequests instanceof Map ? state.diagnosticRequests : [:]
+    Map requestInfo = responseId ? pending[responseId] : null
+    if (msg.type == 'error') {
+        log_debug "DIAG RX error id=${responseId ?: 'none'} request=${requestInfo?.uri ?: requestInfo?.type ?: 'unmatched'} code=${msg.error ?: msg.payload?.errorCode ?: 'unspecified'}"
+    } else if (msg.type == 'response' && requestInfo) {
+        log_debug "DIAG RX response id=${responseId} request=${requestInfo.uri ?: requestInfo.type} result=${msg.payload?.returnValue}"
+    } else if (msg.type == 'registered') {
+        log_debug 'DIAG RX registered (client key redacted)'
+    } else {
+        log_debug "DIAG RX type=${msg.type ?: 'unknown'} id=${responseId ?: 'none'}"
+    }
+    if (responseId && msg.type in ['response', 'error', 'registered']) {
+        pending.remove(responseId)
+        state.diagnosticRequests = pending
+    }
     String type = msg.payload?.callerId == 'secondscreen.client' || msg.payload?.callerId == 'com.webos.service.apiadapter' || now() - (state.lastTx ?: 0) < 2000 ? 'digital' : 'physical'
 
     // Empty reponse. Thanks for nothing!
@@ -564,7 +570,7 @@ void parse(String description) {
             // Service not supported on some (old) devices
             if (msg.error == '404 no such service or method') return
 
-            log_error "▶ Received error message: ${msg.payload?.errorText ? msg.payload?.errorText : msg.error}"
+            log_error "▶ Received error message: ${msg.payload?.errorText ? msg.payload?.errorText : msg.error} [id=${responseId ?: 'none'}, request=${requestInfo?.uri ?: requestInfo?.type ?: 'unmatched'}]"
         return
 
         // Hello (request)
@@ -631,7 +637,8 @@ void parse(String description) {
 
                 case { contains it, [appId:null] }:
                     utils_sendEvent name:'switch', value:'on', descriptionText:'Power is on', type:type
-                    String currentActivity = state.activities?.find { it.key == payload.appId }?.value ?: 'unknown'
+                    String currentActivity = state.activities?.find { it.key == payload.appId }?.value ?: payload.appId?.toString() ?: 'unknown'
+                    log_debug "DIAG foreground appId=${payload.appId ?: 'none'} mappedActivity=${currentActivity} knownActivities=${state.activities?.size() ?: 0}"
                     utils_sendEvent name:'currentActivity', value:currentActivity, descriptionText:"Current activity is ${currentActivity}", type:type
                     return
 
@@ -816,7 +823,12 @@ private void utils_sendMessage(Map message, boolean checkState = true) {
     message.id = "hubitat_${now()}"
     message.sourceId = 'hubitat.hub'
 
-    log_debug "◀ Sending websocket messages: ${message}"
+    // Track only request metadata; never persist payloads, keys, or registration certificates.
+    Map pending = state.diagnosticRequests instanceof Map ? state.diagnosticRequests : [:]
+    if (pending.size() >= 60) pending.clear() // bounded diagnostics; old responses become unmatched
+    pending[message.id.toString()] = [type:message.type?.toString(), uri:message.uri?.toString()]
+    state.diagnosticRequests = pending
+    log_debug "DIAG TX id=${message.id} type=${message.type} uri=${message.uri ?: 'none'} payloadKeys=${message.payload instanceof Map ? message.payload.keySet() : []}"
     String payload = new JsonBuilder(message)
     interfaces.webSocket.sendMessage(payload)
 }

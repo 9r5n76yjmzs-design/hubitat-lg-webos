@@ -1,12 +1,15 @@
 /**
  * LGTV with webOS
  *
- * @see https://codeberg.org/dan-danache/hubitat/src/branch/main/lgtv-drivers
+ * Maintained by Michael Dailous & Weft for webOS TV 23 and later.
+ * Originally developed by Dan Danache.
+ *
+ * @see https://github.com/9r5n76yjmzs-design/hubitat-lg-webos
  */
 import groovy.transform.Field
 
 @Field static final String DRIVER_NAME = 'LGTV Remote'
-@Field static final String DRIVER_VERSION = '1.8.3'
+@Field static final String DRIVER_VERSION = '2.0.0'
 @Field static final List<String> BUTTONS = [
     'LEFT',
     'RIGHT',
@@ -68,7 +71,7 @@ import groovy.transform.Field
 ]
 
 metadata {
-    definition(name:DRIVER_NAME, component:true, namespace:'dandanache', author:'Dan Danache', importUrl:'https://codeberg.org/dan-danache/hubitat/raw/branch/main/lgtv-drivers/component/lgtv-remote.groovy') {
+    definition(name:DRIVER_NAME, component:true, namespace:'dailous', author:'Michael Dailous & Weft', importUrl:'https://raw.githubusercontent.com/9r5n76yjmzs-design/hubitat-lg-webos/main/component/lgtv-remote.groovy') {
         attribute 'status', 'enum', ['playing', 'stopped']
     }
     command 'clearQueue'

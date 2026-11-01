@@ -1,14 +1,13 @@
 {
     "packageName": "LGTV with webOS",
-    "version": "1.8.3",
-    "releaseNotes": "v1.8.3\n - Fix registration on WebOS 33.20.66+ - @ady.adrianu",
+    "version": "2.0.0",
+    "releaseNotes": "v2.0.0\n - Add webOS TV 23+ pairing compatibility.\n - Restore application and HDMI discovery and control.\n - Add diagnostics and the dailous namespace.",
     "minimumHEVersion": "2.1.9",
-    "author": "Dan Danache (@dandanache)",
-    "dateReleased": "2025-11-12",
-    "documentationLink": "https://codeberg.org/dan-danache/hubitat/src/branch/main/lgtv-drivers/README.md",
+    "author": "Michael Dailous & Weft",
+    "dateReleased": "2026-11-01",
+    "documentationLink": "https://github.com/9r5n76yjmzs-design/hubitat-lg-webos/blob/main/README.md",
     "communityLink": "https://community.hubitat.com/t/release-lgtv-with-webos/148892",
-    "payPalUrl": "https://www.buymeacoffee.com/dandanache",
-    "licenseFile": "https://codeberg.org/dan-danache/hubitat/raw/branch/main/LICENSE",
+    "licenseFile": "https://raw.githubusercontent.com/9r5n76yjmzs-design/hubitat-lg-webos/main/LICENSE",
     "category": "Control",
     "tags": [ "Appliances", "LAN", "Multimedia" ],
     "drivers" : [
@@ -16,16 +15,16 @@
             "id" : "1111bd2d-76eb-4f0a-b2cc-2b5128a7367b",
             "name": "LGTV with webOS",
             "description": "Driver to control LG TV devices using webOS websockets.",
-            "namespace": "dandanache",
-            "location": "https://codeberg.org/dan-danache/hubitat/raw/tag/lgtv_1.8.3/lgtv-drivers/lgtv-with-webos.groovy",
+            "namespace": "dailous",
+            "location": "https://raw.githubusercontent.com/9r5n76yjmzs-design/hubitat-lg-webos/main/lgtv-with-webos.groovy",
             "required": true
         },
         {
             "id" : "aa8739d8-7153-4a30-a5d4-479ce8fffa08",
             "name": "LGTV Remote",
             "description": "Component driver to simulate TV Remote button pushes.",
-            "namespace": "dandanache",
-            "location": "https://codeberg.org/dan-danache/hubitat/raw/tag/lgtv_1.8.3/lgtv-drivers/component/lgtv-remote.groovy",
+            "namespace": "dailous",
+            "location": "https://raw.githubusercontent.com/9r5n76yjmzs-design/hubitat-lg-webos/main/component/lgtv-remote.groovy",
             "required": true
         }
     ]

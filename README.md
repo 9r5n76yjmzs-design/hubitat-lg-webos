@@ -13,20 +13,20 @@ Once you have HPM installed, follow these steps to install the "LGTV with webOS"
 1. In the Hubitat interface, go to **Apps** and select **Hubitat Package Manager**.
 1. Select **Install**, then **Search by Keywords**.
 1. Enter **LGTV** in the search box and click **Next**.
-1. Select **LGTV with webOS by Dan Danache** and click **Next**.
+1. Select **LGTV with webOS by Michael Dailous & Weft** and click **Next**.
 1. Follow the install instructions.
 
 ### Manual Installation
-If you prefer not to use HPM, you can manually install the drivers by importing the driver code from Codeberg:
+If you prefer not to use HPM, you can manually install the drivers by importing the driver code from GitHub:
 
 1. In the Hubitat interface, go to **Drivers Code**.
 1. Click **Add driver**, then select **Import** from the hamburger menu in the top right.
-1. Enter `https://codeberg.org/dan-danache/hubitat/raw/branch/main/lgtv-drivers/lgtv-with-webos.groovy` it in the URL field.
+1. Enter `https://raw.githubusercontent.com/9r5n76yjmzs-design/hubitat-lg-webos/main/lgtv-with-webos.groovy` in the URL field.
 1. Click **Import**, then click **OK** and the code should load in the editor.
 1. Click **Save** in the top right.
 1. Go to **Drivers Code**.
 1. Click **Add driver**, then select **Import** from the hamburger menu in the top right.
-1. Enter `https://codeberg.org/dan-danache/hubitat/raw/branch/main/lgtv-drivers/component/lgtv-remote.groovy` it in the URL field.
+1. Enter `https://raw.githubusercontent.com/9r5n76yjmzs-design/hubitat-lg-webos/main/component/lgtv-remote.groovy` in the URL field.
 1. Click **Import**, then click **OK** and the code should load in the editor.
 1. Click **Save** in the top right.
 
