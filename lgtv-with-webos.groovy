@@ -14,7 +14,6 @@ import groovy.transform.Field
 
 import hubitat.device.HubAction
 import hubitat.device.Protocol
-import hubitat.helper.NetworkUtils
 
 @Field static final String DRIVER_NAME = 'LGTV with webOS'
 @Field static final String DRIVER_VERSION = '2.0.0'
@@ -23,6 +22,7 @@ import hubitat.helper.NetworkUtils
 @Field static final List<String> SOUND_MODES = ['aiSoundPlus', 'aiSound', 'standard', 'news', 'music', 'movie', 'sports', 'game']
 @Field static final List<String> SOUND_OUTPUT = ['tv_speaker', 'external_arc', 'external_optical', 'bt_soundbar', 'mobile_phone', 'lineout', 'headphone', 'tv_speaker_bluetooth']
 @Field static final Integer MAX_FAST_PING = 20
+@Field static final Integer PROBE_TIMEOUT_SECONDS = 3
 
 metadata {
     definition(name:DRIVER_NAME, namespace:'dailous', author:'Michael Dailous', importUrl:'https://raw.githubusercontent.com/9r5n76yjmzs-design/hubitat-lg-webos/main/lgtv-with-webos.groovy') {
@@ -185,8 +185,37 @@ void setPingInterval(BigDecimal pingInterval) {
 }
 void pingDevice() {
     if (!ipAddr || "${device.currentValue('websocket', true)}" == 'online') return
-    log_debug "Pinging ${ipAddr} ..."
-    if (NetworkUtils.ping(ipAddr, 1)?.packetsReceived > 0) connect()
+    log_debug "Probing ${ipAddr} ..."
+    probeDevice([source:'scheduled'])
+}
+
+// Reachability probe: an HTTP(S) GET to the TV's websocket port replaces ICMP ping, so detection
+// only needs the port the driver already uses (no ICMP allow rule required).
+private void probeDevice(Map data) {
+    String uri = useSSL ? "https://${ipAddr}:3001/" : "http://${ipAddr}:3000/"
+    log_debug "DIAG PROBE start source=${data.source} retry=${data.currentRetry ?: 0} uri=${uri}"
+    asynchttpGet('probeResponse', [uri:uri, timeout:PROBE_TIMEOUT_SECONDS, ignoreSSLIssues:true], data)
+}
+void probeResponse(response, Map data) {
+    Integer status = null
+    String error = null
+    try { status = response.getStatus() } catch (e) { }
+    try { if (response.hasError()) error = response.getErrorMessage() } catch (e) { }
+    boolean reachable = utils_isProbeReachable(status, error)
+    log_debug "DIAG PROBE result source=${data?.source} retry=${data?.currentRetry ?: 0} status=${status} error=${error ?: 'none'} reachable=${reachable}"
+
+    if (reachable && "${device.currentValue('switch', true)}" != 'on') connect()
+
+    // Fast probing: schedule the next attempt only after this one finished, so requests never overlap
+    if (data?.source == 'fast') runIn 1, 'fastPing', [data:[currentRetry:data.currentRetry]]
+}
+private boolean utils_isProbeReachable(Integer status, String error) {
+    // Any answer from the TV's server (even an HTTP or TLS error) means it is up.
+    // Only "nobody answered" failures count as unreachable.
+    // TODO: refine after observing real DIAG PROBE results on the hub (timeout vs refused vs HTTP error).
+    if (status == 408) return false
+    if (error && error ==~ /(?is).*(timed out|timeout|refused|unreachable|no route|host is down).*/) return false
+    return status != null || error != null
 }
 void logsOff() {
     log_info '⏲️ Automatically reverting log level to "Info"'
@@ -232,21 +261,19 @@ void on() {
     util_wakeOnLan getDataValue('wiredMacAddress')
     if (ipAddr) util_wakeOnLan getMACFromIP(ipAddr)
 
-    // Start fast pinging the IP for a maximum of MAX_FAST_PING times
+    // Start fast probing the TV for a maximum of MAX_FAST_PING times
     runIn 1, 'fastPing', [data:[currentRetry:0]]
 }
 private void fastPing(Map data) {
-    data.currentRetry += 1
-    if (!ipAddr || "${device.currentValue('switch', true)}" == 'on' || data.currentRetry > MAX_FAST_PING) {
-        log_debug 'Fast ping terminated'
+    int currentRetry = (data?.currentRetry ?: 0) + 1
+    if (!ipAddr || "${device.currentValue('switch', true)}" == 'on' || currentRetry > MAX_FAST_PING) {
+        log_debug 'Fast probe terminated'
         return
     }
 
-    log_debug "Fast pinging ${ipAddr}: ${data.currentRetry} / ${MAX_FAST_PING} ..."
-    if (NetworkUtils.ping(ipAddr, 1)?.packetsReceived > 0 && "${device.currentValue('switch', true)}" != 'on') connect()
-
-    // Keep fast-pinging until switch changes to 'on' or MAX_FAST_PING limit is reached
-    runIn 1, 'fastPing', [data:data]
+    // Keep fast-probing (rescheduled from probeResponse) until switch changes to 'on' or MAX_FAST_PING limit is reached
+    log_debug "Fast probing ${ipAddr}: ${currentRetry} / ${MAX_FAST_PING} ..."
+    probeDevice([source:'fast', currentRetry:currentRetry])
 }
 void off() {
     log_debug '🎬 Powering off ...'
