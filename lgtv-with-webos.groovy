@@ -1,7 +1,7 @@
 /**
  * LGTV with webOS
  *
- * Maintained by Michael Dailous & Weft for webOS TV 23 and later.
+ * Maintained by Michael Dailous for webOS TV 23 and later.
  * Originally developed by Dan Danache.
  *
  * @see https://github.com/9r5n76yjmzs-design/hubitat-lg-webos
@@ -25,7 +25,7 @@ import hubitat.helper.NetworkUtils
 @Field static final Integer MAX_FAST_PING = 20
 
 metadata {
-    definition(name:DRIVER_NAME, namespace:'dailous', author:'Michael Dailous & Weft', importUrl:'https://raw.githubusercontent.com/9r5n76yjmzs-design/hubitat-lg-webos/main/lgtv-with-webos.groovy') {
+    definition(name:DRIVER_NAME, namespace:'dailous', author:'Michael Dailous', importUrl:'https://raw.githubusercontent.com/9r5n76yjmzs-design/hubitat-lg-webos/main/lgtv-with-webos.groovy') {
         capability 'Actuator'
         capability 'Initialize'
         capability 'Refresh'

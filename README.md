@@ -13,7 +13,7 @@ Once you have HPM installed, follow these steps to install the "LGTV with webOS"
 1. In the Hubitat interface, go to **Apps** and select **Hubitat Package Manager**.
 1. Select **Install**, then **Search by Keywords**.
 1. Enter **LGTV** in the search box and click **Next**.
-1. Select **LGTV with webOS by Michael Dailous & Weft** and click **Next**.
+1. Select **LGTV with webOS by Michael Dailous** and click **Next**.
 1. Follow the install instructions.
 
 ### Manual Installation

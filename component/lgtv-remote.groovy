@@ -1,7 +1,7 @@
 /**
  * LGTV with webOS
  *
- * Maintained by Michael Dailous & Weft for webOS TV 23 and later.
+ * Maintained by Michael Dailous for webOS TV 23 and later.
  * Originally developed by Dan Danache.
  *
  * @see https://github.com/9r5n76yjmzs-design/hubitat-lg-webos
@@ -71,7 +71,7 @@ import groovy.transform.Field
 ]
 
 metadata {
-    definition(name:DRIVER_NAME, component:true, namespace:'dailous', author:'Michael Dailous & Weft', importUrl:'https://raw.githubusercontent.com/9r5n76yjmzs-design/hubitat-lg-webos/main/component/lgtv-remote.groovy') {
+    definition(name:DRIVER_NAME, component:true, namespace:'dailous', author:'Michael Dailous', importUrl:'https://raw.githubusercontent.com/9r5n76yjmzs-design/hubitat-lg-webos/main/component/lgtv-remote.groovy') {
         attribute 'status', 'enum', ['playing', 'stopped']
     }
     command 'clearQueue'
