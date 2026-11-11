@@ -75,17 +75,18 @@ metadata {
     command 'startWebPage', [[name:'URL*', type:'STRING', description:'URL to open in Web Browser']]
     command 'screenSaverOn'
     command 'screenSaverOff'
-    command 'pushRemoteButtons', [[name:'TV Remote buttons sequence <a href="https://github.com/9r5n76yjmzs-design/hubitat-lg-webos/blob/main/README.md#tv-remote-control" target="_blank" title="Learn more about this">📖</a> *', type:'STRING']]
+    command 'pushRemoteButtons', [[name:'TV Remote buttons sequence <a href="https://github.com/9r5n76yjmzs-design/hubitat-lg-webos/blob/main/README.md#tv-remote-control" target="_blank" rel="noopener noreferrer" title="Learn more about this">📖</a> *', type:'STRING']]
 
     preferences {
+        // No remote images here: opening the preferences page shouldn't make the browser contact another site.
         input(
             name:'helpInfo', type:'hidden',
             title:"""
-            <div style="min-height:55px; background:transparent url('https://raw.githubusercontent.com/9r5n76yjmzs-design/hubitat-lg-webos/main/img/lgtv.webp') no-repeat left center;background-size:auto 55px;padding-left:65px">
+            <div>
                 LGTV with webOS <small>v${DRIVER_VERSION}</small><br>
                 <small><div>
-                • <a href="https://github.com/9r5n76yjmzs-design/hubitat-lg-webos/blob/main/README.md" target="_blank">driver details</a><br>
-                • <a href="https://community.hubitat.com/t/release-lgtv-with-webos/148892" target="_blank">community page</a><br>
+                • <a href="https://github.com/9r5n76yjmzs-design/hubitat-lg-webos/blob/main/README.md" target="_blank" rel="noopener noreferrer">driver details</a><br>
+                • <a href="https://community.hubitat.com/t/release-lgtv-with-webos/148892" target="_blank" rel="noopener noreferrer">community page</a><br>
                 </div></small>
             </div>
             """
@@ -99,11 +100,11 @@ metadata {
                 '3' : 'Warning - log events that require attention',
                 '4' : 'Error - log errors'
             ],
-            defaultValue: '1'
+            defaultValue: '2'
         )
         input(
             name:'ipAddr', type:'string', title:'IP address', required:true,
-            description: 'Enter the device IP address'
+            description: 'Enter the TV\'s IPv4 address, for example 192.168.1.50'
         )
         input(
             name:'useSSL', type:'bool', title:'Enable SSL', required:true,
@@ -114,6 +115,10 @@ metadata {
             name:'simulateRemote', type:'bool', title:'Simulate TV Remote', required:true,
             description:'Allows you to simulate TV Remote button pushes (creates a child device)',
             defaultValue:false
+        )
+        input(
+            name:'clientKey', type:'password', title:'Pairing key',
+            description:'Filled in automatically when the TV accepts pairing. Clear it and save to pair again. Keep it private: it lets anything on your network control the TV.'
         )
     }
 }
@@ -133,21 +138,30 @@ void installed() {
 void updated(boolean auto = false) {
     log_info "Saving preferences${auto ? ' (auto)' : ''} ..."
 
-    // Ask for the firmware version again: a TV update may now allow it.
-    if (!auto) state.remove 'swInfoUnavailable'
+    // Ask for the firmware version again: a TV update may now allow it. Retry saving the pairing key too.
+    if (!auto) {
+        state.remove 'swInfoUnavailable'
+        state.remove 'pkMoveAttempts'
+    }
 
     if (logLevel == null) {
-        logLevel = '1'
+        logLevel = '2'
         device.updateSetting 'logLevel', [value:logLevel, type:'enum']
     }
     if (logLevel == '1') runIn 1800, 'logsOff'
     log_info "🛠️ Log verbosity = ${logLevel}"
 
-    // Update device network Id
+    utils_migratePairingKey()
+
+    // Update device network Id. Only a plain IPv4 address is accepted, so commands can't be sent to another host.
     if (ipAddr != null) {
-        device.deviceNetworkId = ipAddr.tokenize('.').collect { String.format('%02X', it.toInteger()) }.join()
-        connect()
-        log_info "🛠️ IP address = ${ipAddr}"
+        if (utils_isIPv4(ipAddr)) {
+            device.deviceNetworkId = ipAddr.trim().tokenize('.').collect { String.format('%02X', it.toInteger()) }.join()
+            connect()
+            log_info "🛠️ IP address = ${ipAddr.trim()}"
+        } else {
+            log_error "🛠️ '${ipAddr}' is not an IPv4 address (for example 192.168.1.50); not connecting"
+        }
     }
 
     if (useSSL == null) {
@@ -191,7 +205,8 @@ void setPingInterval(BigDecimal pingInterval) {
     pingDevice()
 }
 void pingDevice() {
-    if (!ipAddr || "${device.currentValue('websocket', true)}" == 'online') return
+    if (state.pk) utils_migratePairingKey()
+    if (!utils_isIPv4(ipAddr) || "${device.currentValue('websocket', true)}" == 'online') return
     log_debug "Probing ${ipAddr} ..."
     probeDevice([source:'scheduled'])
 }
@@ -199,8 +214,10 @@ void pingDevice() {
 // Reachability probe: an HTTP(S) GET to the TV's websocket port replaces ICMP ping, so detection
 // only needs the port the driver already uses (no ICMP allow rule required).
 private void probeDevice(Map data) {
-    String uri = useSSL ? "https://${ipAddr}:3001/" : "http://${ipAddr}:3000/"
+    if (!utils_isIPv4(ipAddr)) return
+    String uri = useSSL ? "https://${ipAddr.trim()}:3001/" : "http://${ipAddr.trim()}:3000/"
     log_debug "DIAG PROBE start source=${data.source} retry=${data.currentRetry ?: 0} uri=${uri}"
+    // Certificate not verified (self-signed TV); the probe sends no data, it only checks for an answer. See SECURITY.md.
     asynchttpGet('probeResponse', [uri:uri, timeout:PROBE_TIMEOUT_SECONDS, ignoreSSLIssues:true], data)
 }
 void probeResponse(response, Map data) {
@@ -238,6 +255,7 @@ void logsOff() {
 void initialize() {
     state.lastTx = 0
     state.lastRx = 0
+    utils_migratePairingKey()
     connect(true)
 }
 
@@ -267,14 +285,14 @@ void on() {
     log_debug '🎬 Powering on ...'
     util_wakeOnLan getDataValue('wifiMacAddress')
     util_wakeOnLan getDataValue('wiredMacAddress')
-    if (ipAddr) util_wakeOnLan getMACFromIP(ipAddr)
+    if (utils_isIPv4(ipAddr)) util_wakeOnLan getMACFromIP(ipAddr.trim())
 
     // Start fast probing the TV for a maximum of MAX_FAST_PING times
     runIn 1, 'fastPing', [data:[currentRetry:0]]
 }
 private void fastPing(Map data) {
     int currentRetry = (data?.currentRetry ?: 0) + 1
-    if (!ipAddr || "${device.currentValue('switch', true)}" == 'on' || currentRetry > MAX_FAST_PING) {
+    if (!utils_isIPv4(ipAddr) || "${device.currentValue('switch', true)}" == 'on' || currentRetry > MAX_FAST_PING) {
         log_debug 'Fast probe terminated'
         return
     }
@@ -327,9 +345,9 @@ void channelDown() {
 void deviceNotification(String text, String type = 'Toast') {
     log_debug "🎬 Sending ${type} notification ..."
     if (type.startsWith('Alert') || text.startsWith('!')) {
-        utils_sendMessage([type:'request', uri:'"ssap://system.notifications/createAlert', payload:[message:text.replaceAll('^!', ''), buttons:[[label:'Dismiss']]]])
+        utils_sendMessage([type:'request', uri:'ssap://system.notifications/createAlert', payload:[message:text.replaceAll('^!', ''), buttons:[[label:'Dismiss']]]])
     } else {
-        utils_sendMessage([type:'request', uri:'"ssap://system.notifications/createToast', payload:[message:text]])
+        utils_sendMessage([type:'request', uri:'ssap://system.notifications/createToast', payload:[message:text]])
     }
 }
 
@@ -435,6 +453,11 @@ void setSoundOutput(String output) {
     //utils_sendMessage([type:'request', uri:'com.webos.service.apiadapter/audio/changeSoundOutput', payload:[output:output]]])
 }
 void startVideo(String url) {
+    if (!utils_isWebUrl(url)) {
+        log_error "🎬 Not playing '${url}': only http:// and https:// links are allowed"
+        return
+    }
+    url = url.trim()
     log_debug "🎬 Playing video file: [${url}]..."
 
     // https://gist.github.com/aabytt/bddbb1bcf031a050d89a89aeee3a6737#playling-a-link-with-standard-lg-webos-player
@@ -444,6 +467,11 @@ void startVideo(String url) {
     ]])
 }
 void startWebPage(String url) {
+    if (!utils_isWebUrl(url)) {
+        log_error "🎬 Not opening '${url}': only http:// and https:// links are allowed"
+        return
+    }
+    url = url.trim()
     log_debug "🎬 Opening web page: [${url}]..."
     utils_sendMessage([type:'request', uri:'ssap://com.webos.applicationManager/launch', payload:[
         id: 'com.webos.app.browser',
@@ -480,8 +508,8 @@ void pushRemoteButtons(String buttonSequence) {
 // ===================================================================================================================
 
 void connect(boolean force = false) {
-    if (!ipAddr) {
-        log_warn 'Device IP address not set in Preferences tab. Make sure you are using DHCP reservation for the TV\'s IP address!'
+    if (!utils_isIPv4(ipAddr)) {
+        log_warn 'Device IPv4 address not set in Preferences tab. Make sure you are using DHCP reservation for the TV\'s IP address!'
         return
     }
 
@@ -498,7 +526,8 @@ void connect(boolean force = false) {
 
     log_debug "▲ Connecting to ${ipAddr} ${force ? '(forced) ' : ''}..."
     disconnect()
-    interfaces.webSocket.connect(useSSL ? "wss://${ipAddr}:3001/" : "ws://${ipAddr}:3000/", headers: ['Content-Type': 'application/json'], ignoreSSLIssues: true)
+    // The TV's certificate is self-signed and Hubitat can't pin it, so it isn't verified. See SECURITY.md.
+    interfaces.webSocket.connect(useSSL ? "wss://${ipAddr.trim()}:3001/" : "ws://${ipAddr.trim()}:3000/", headers: ['Content-Type': 'application/json'], ignoreSSLIssues: true)
 
     // Update "websocket" attribute
     utils_sendEvent name:'websocket', value:'connecting', descriptionText:'Websocket is connecting', type:'digital'
@@ -508,8 +537,11 @@ void disconnect() {
     try { interfaces.webSocket.close() } catch (e) { }
 }
 void register() {
-    if (state.pk) {
-        utils_sendMessage([type:'register', payload:['client-key':state.pk]], false)
+    // Read the key before migrating: a setting changed in this run may not be visible until the next one
+    String key = utils_pairingKey()
+    utils_migratePairingKey()
+    if (key) {
+        utils_sendMessage([type:'register', payload:['client-key':key]], false)
         return
     }
 
@@ -566,6 +598,10 @@ void webSocketStatus(String message) {
     utils_sendEvent name:'websocket', value:websocket, descriptionText:"Websocket is ${websocket}", type:'physical'
 }
 void parse(String description) {
+    // Saving new driver code doesn't run updated() or initialize(), so a key saved by an earlier version is also
+    // moved here, on the first message from the TV.
+    if (state.pk) utils_migratePairingKey()
+
     // Avoid logging raw messages: registration responses may include persistent client keys.
     state.lastRx = now()
 
@@ -643,8 +679,8 @@ void parse(String description) {
             utils_sendEvent name:'switch', value:'on', descriptionText:'Power is on', type:'physical'
 
             // Setup subscriptions
-            runIn 1, 'subscribe', [data:[firstTime:!state.containsKey('pk')]]
-            state.pk = msg.payload['client-key']
+            runIn 1, 'subscribe', [data:[firstTime:!utils_pairingKey()]]
+            utils_storePairingKey(msg.payload['client-key'] as String)
 
             // Auto-sync device state with Hubitat
             runIn 7, 'refresh'
@@ -827,8 +863,8 @@ void parse(String description) {
             }
     }
 
-    // Unexpected websocket message
-    log_error "🚩 Received unexpected websocket message: description=${description}"
+    // Unexpected websocket message. Only its shape is logged: a raw message could contain the pairing key.
+    log_error "🚩 Received unexpected websocket message: type=${msg.type ?: 'unknown'} id=${responseId ?: 'none'} payloadKeys=${msg.payload instanceof Map ? msg.payload.keySet() : []}"
 }
 
 // ===================================================================================================================
@@ -852,6 +888,61 @@ private void log_error(String message, String prefix = device.displayName) {
 // Helper methods (keep them simple, keep them dumb)
 // ===================================================================================================================
 
+// The pairing key lives in a masked password preference, never in State Variables or the logs.
+// Hubitat has no encrypted store: the key is still kept unencrypted on the hub and in hub backups.
+private String utils_pairingKey() {
+    String key = (settings?.clientKey ?: state.pk) as String
+    return key?.trim() ? key.trim() : null
+}
+// Saves a key the TV just issued. The copy in state is a fallback only: it is removed once a later run reads
+// the same key back from the preference, so a preference Hubitat didn't save can never cause a pairing loop.
+private void utils_storePairingKey(String key) {
+    if (!key?.trim()) return
+    if (key.trim() == (settings?.clientKey as String)?.trim()) {
+        state.remove 'pk'
+        return
+    }
+    device.updateSetting 'clientKey', [value:key.trim(), type:'password']
+    state.pk = key.trim() // security-check: allow S1 (temporary fallback until the preference is verified)
+    state.remove 'pkMoveAttempts'
+    log_info '🔑 Paired with the TV; saving the pairing key in the Pairing key preference'
+}
+// Moves a key from state (earlier versions, or a new key not yet verified) to the preference, and deletes
+// the state copy only after the preference is read back with the same value in a later run.
+private void utils_migratePairingKey() {
+    if (!state.pk) return
+    String pk = state.pk.toString().trim()
+    String saved = (settings?.clientKey as String)?.trim()
+    if (saved == pk) {
+        state.remove 'pk'
+        state.remove 'pkMoveAttempts'
+        log_info '🔑 The pairing key is now kept only in the masked Pairing key preference'
+        return
+    }
+    if (saved) return // a different key was entered in Preferences; keep both until pairing settles it
+    if (((state.pkMoveAttempts ?: 0) as Integer) >= 3) return // retried again after Save Preferences
+    int attempts = ((state.pkMoveAttempts ?: 0) as Integer) + 1
+    state.pkMoveAttempts = attempts
+    device.updateSetting 'clientKey', [value:pk, type:'password']
+    if (attempts == 3) log_warn '🔑 Hubitat has not saved the Pairing key preference after 3 attempts; the key stays in State Variables so the TV keeps working'
+    else if (attempts < 3) log_debug "🔑 Saving the pairing key in the Pairing key preference (attempt ${attempts})"
+}
+
+// Only a plain dotted IPv4 address: no host names, ports, paths or user info that could redirect traffic.
+private static boolean utils_isIPv4(String value) {
+    return value != null && value.trim() ==~ /^((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)$/
+}
+
+// Only http(s) links, without spaces or markup, may be sent to the TV's browser or media player.
+private static boolean utils_isWebUrl(String value) {
+    return value != null && value.trim() ==~ /(?i)^https?:\/\/[^\s<>"'`]+$/
+}
+
+// Removes angle brackets from text that comes from outside the hub, so it can't add markup to the hub's pages.
+private static String utils_plainText(String value) {
+    return value == null ? null : value.replaceAll(/[<>]/, '')
+}
+
 // Explains TV error responses that are expected in normal use, or returns null for a real error.
 private static String utils_knownErrorNote(Map msg, Map requestInfo) {
     String code = msg.error?.toString() ?: ''
@@ -861,8 +952,8 @@ private static String utils_knownErrorNote(Map msg, Map requestInfo) {
 }
 
 private void utils_sendMessage(Map message, boolean checkState = true) {
-    if (!ipAddr) {
-        log_warn 'Device IP address not set in Preferences tab. Make sure you are using DHCP reservation for the TV\'s IP Address!'
+    if (!utils_isIPv4(ipAddr)) {
+        log_warn 'Device IPv4 address not set in Preferences tab. Make sure you are using DHCP reservation for the TV\'s IP Address!'
         return
     }
 
@@ -895,6 +986,9 @@ private void utils_sendMessage(Map message, boolean checkState = true) {
 }
 private void utils_sendEvent(Map event) {
     if (event.value == null || event.value == '') return
+    // Values come from the TV (app names, channel names, ...): keep markup out of the hub's pages
+    if (!(event.value instanceof Number)) event.value = utils_plainText(event.value.toString())
+    if (event.descriptionText) event.descriptionText = utils_plainText(event.descriptionText.toString())
     if ("${device.currentValue(event.name, true)}" != "${event.value}") {
         log_info "${event.descriptionText} [${event.type}]"
     } else {
@@ -904,6 +998,7 @@ private void utils_sendEvent(Map event) {
 }
 private void utils_dataValue(String key, String value) {
     if (value == null || value == '') return
+    value = utils_plainText(value)
     log_debug "Update data value: ${key}=${value}"
     updateDataValue key, value
 }
