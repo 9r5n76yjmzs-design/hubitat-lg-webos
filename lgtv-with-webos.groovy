@@ -24,6 +24,9 @@ import hubitat.device.Protocol
 @Field static final Integer MAX_FAST_PING = 20
 @Field static final Integer PROBE_TIMEOUT_SECONDS = 3
 @Field static final String SW_INFO_URI = 'ssap://com.webos.service.update/getCurrentSWInformation'
+@Field static final String CURRENT_CHANNEL_URI = 'ssap://tv/getCurrentChannel'
+@Field static final String SW_INFO_NOTE = 'firmware version not readable'
+@Field static final String NOT_LIVE_TV_NOTE = 'not watching Live TV'
 
 metadata {
     definition(name:DRIVER_NAME, namespace:'dailous', author:'Michael Dailous', importUrl:'https://raw.githubusercontent.com/9r5n76yjmzs-design/hubitat-lg-webos/main/lgtv-with-webos.groovy') {
@@ -244,7 +247,7 @@ void refresh() {
 
     // We also have subscription for this values
     utils_sendMessage([type:'request', uri:'ssap://audio/getVolume'])
-    utils_sendMessage([type:'request', uri:'ssap://tv/getCurrentChannel'])
+    utils_sendMessage([type:'request', uri:CURRENT_CHANNEL_URI])
 
     // These values rarely change, so we only request them on demand
     // Skipped once the TV has refused it (401), so the refusal isn't logged as an error on every refresh
@@ -526,7 +529,7 @@ void subscribe(Map data = false) {
 
     // Setup subscriptions
     utils_sendMessage([type:'subscribe', uri:'ssap://audio/getStatus'])
-    utils_sendMessage([type:'subscribe', uri:'ssap://tv/getCurrentChannel'])
+    utils_sendMessage([type:'subscribe', uri:CURRENT_CHANNEL_URI])
     utils_sendMessage([type:'subscribe', uri:'ssap://com.webos.applicationManager/getForegroundAppInfo'])
     utils_sendMessage([type:'subscribe', uri:'ssap://com.webos.media/getForegroundAppInfo'])
     utils_sendMessage([type:'subscribe', uri:'ssap://com.webos.service.tvpower/power/getPowerState'])
@@ -571,7 +574,8 @@ void parse(String description) {
     Map pending = state.diagnosticRequests instanceof Map ? state.diagnosticRequests : [:]
     Map requestInfo = responseId ? pending[responseId] : null
     if (msg.type == 'error') {
-        log_debug "DIAG RX error id=${responseId ?: 'none'} request=${requestInfo?.uri ?: requestInfo?.type ?: 'unmatched'} code=${msg.error ?: msg.payload?.errorCode ?: 'unspecified'}"
+        String note = utils_knownErrorNote(msg, requestInfo)
+        log_debug "DIAG RX error id=${responseId ?: 'none'} request=${requestInfo?.uri ?: requestInfo?.type ?: 'unmatched'} code=${msg.error ?: msg.payload?.errorCode ?: 'unspecified'}${note ? " (expected: ${note})" : ''}"
     } else if (msg.type == 'response' && requestInfo) {
         log_debug "DIAG RX response id=${responseId} request=${requestInfo.uri ?: requestInfo.type} result=${msg.payload?.returnValue}"
     } else if (msg.type == 'registered') {
@@ -604,9 +608,17 @@ void parse(String description) {
 
             // Some firmware refuses the firmware-version request to clients paired without a signed manifest.
             // It only fills the fwVersion data value, so note it once and stop asking. Other 401s stay errors.
-            if (msg.error?.startsWith('401') && requestInfo?.uri == SW_INFO_URI) {
+            if (utils_knownErrorNote(msg, requestInfo) == SW_INFO_NOTE) {
                 if (!state.swInfoUnavailable) log_info 'The TV does not allow reading its firmware version (401 insufficient permissions); fwVersion will not be updated'
                 state.swInfoUnavailable = true
+                return
+            }
+
+            // The TV answers the current-channel request with "500 Application error" when Live TV isn't the
+            // input being watched. Say so once, until a channel is reported again, instead of logging an error.
+            if (utils_knownErrorNote(msg, requestInfo) == NOT_LIVE_TV_NOTE) {
+                if (!state.notWatchingLiveTv) log_info 'Not watching Live TV, so there is no current channel'
+                state.notWatchingLiveTv = true
                 return
             }
 
@@ -664,6 +676,7 @@ void parse(String description) {
                 case { contains it, [channelNumber:null] }:
                     String channel = payload.channelNumber
                     String channelName = payload.channelName ?: 'unknown'
+                    state.remove 'notWatchingLiveTv'
                     utils_sendEvent name:'channel', value:channel, descriptionText:"Channel is ${channel}", type:type
                     utils_sendEvent name:'channelName', value:channelName, descriptionText:"Channel name is ${channelName}", type:type
                     return
@@ -838,6 +851,14 @@ private void log_error(String message, String prefix = device.displayName) {
 // ===================================================================================================================
 // Helper methods (keep them simple, keep them dumb)
 // ===================================================================================================================
+
+// Explains TV error responses that are expected in normal use, or returns null for a real error.
+private static String utils_knownErrorNote(Map msg, Map requestInfo) {
+    String code = msg.error?.toString() ?: ''
+    if (code.startsWith('401') && requestInfo?.uri == SW_INFO_URI) return SW_INFO_NOTE
+    if (code.startsWith('500') && requestInfo?.uri == CURRENT_CHANNEL_URI) return NOT_LIVE_TV_NOTE
+    return null
+}
 
 private void utils_sendMessage(Map message, boolean checkState = true) {
     if (!ipAddr) {
