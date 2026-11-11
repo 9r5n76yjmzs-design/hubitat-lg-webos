@@ -1,0 +1,17 @@
+# Project continuity records are kept local and never committed
+*Living_Continuity_Record*.md
+
+# Local secrets / scratch
+*.local
+*.key
+*.pem
+.env
+.env.*
+secrets/
+
+# Editor / OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
