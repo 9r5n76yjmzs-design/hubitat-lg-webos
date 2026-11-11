@@ -5,6 +5,40 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2026-11-11
+First release of this fork, maintained by Michael Dailous for webOS TV 23 and later. Based on Dan Danache's 1.8.3.
+
+### Breaking
+- New driver namespace `dailous` (was `dandanache`). Install the drivers from this repository and switch existing devices to the new **LGTV with webOS** driver.
+- The TV address must be a plain IPv4 address; host names are no longer accepted.
+- The TV is asked only for the 30 permissions the driver uses (was 57). A TV paired by an earlier version keeps its broader grant until it is paired again.
+
+### Added
+- webOS TV 23+ pairing without the blacklisted signed manifest (request the system info before registering, as required on webOS 33.20.66+).
+- Pairing key kept in a masked **Pairing key** preference. Keys saved by earlier versions under State Variables move automatically, and the state copy is deleted only after the key is read back from the preference.
+- Request/response correlation in debug logs (`DIAG` lines), without logging payloads or keys.
+- `SECURITY.md` with the secure coding standard, and CI that runs a security check and a Groovy parse check on every pull request.
+
+### Changed
+- Remote power-on is detected with a TCP probe of the websocket port (3001/3000) instead of ICMP ping, so no ICMP firewall rule is needed.
+- Log level defaults to Info.
+- Start Web Page and Start Video accept only `http://` and `https://` links.
+- TV Remote: up to 100 queued buttons and waits; `WAIT` must be 0 to 10000 ms.
+
+### Fixed
+- Notifications: the request URIs started with a stray quote.
+- A refused firmware-version request (`401 insufficient permissions`) is logged once at info level and no longer requested on every refresh.
+- The current-channel `500 Application error` returned when Live TV isn't being watched is reported as "Not watching Live TV" instead of an error.
+
+### Security
+- Raw TV messages are never logged; unexpected messages are logged by shape only.
+- Angle brackets are removed from TV-supplied text before it is shown on the hub.
+- The Preferences page no longer loads a remote image; new-tab links use `rel="noopener noreferrer"`.
+
+### Known limitations
+- Acceptance tests LG-06 (power off/on and standby; Wake-on-LAN power-on did not work on the test TV), LG-07 (network drop and recovery) and LG-08 (internet down, home network up) are not complete.
+- The TV's self-signed certificate is not verified until a private certificate store is available. See `SECURITY.md`.
+
 ## [1.8.3] - 2025-11-12
 ### Fixed
 - Fix registration on WebOS 33.20.66+ - `@ady.adrianu`

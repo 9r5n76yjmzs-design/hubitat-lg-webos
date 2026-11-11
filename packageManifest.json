@@ -1,18 +1,22 @@
 {
     "packageName": "LGTV with webOS",
     "version": "2.0.0",
-    "releaseNotes": "v2.0.0\n - Add webOS TV 23+ pairing compatibility.\n - Restore application and HDMI discovery and control.\n - Add diagnostics and the dailous namespace.",
+    "releaseNotes": "v2.0.0 - first release of this fork for webOS TV 23+.\n - New namespace \"dailous\": install from this repository and switch existing devices to the new driver.\n - webOS 23+ pairing; pairing key in a masked preference.\n - Power-on detection by TCP probe instead of ICMP.\n - Security hardening: IPv4-only address, http(s)-only links, fewer TV permissions (pair again to apply).\nSee CHANGELOG.md for details.",
     "minimumHEVersion": "2.1.9",
     "author": "Michael Dailous",
-    "dateReleased": "2026-11-01",
+    "dateReleased": "2026-11-11",
     "documentationLink": "https://github.com/9r5n76yjmzs-design/hubitat-lg-webos/blob/main/README.md",
-    "communityLink": "https://community.hubitat.com/t/release-lgtv-with-webos/148892",
+    "communityLink": "https://github.com/9r5n76yjmzs-design/hubitat-lg-webos/issues",
     "licenseFile": "https://raw.githubusercontent.com/9r5n76yjmzs-design/hubitat-lg-webos/main/LICENSE",
     "category": "Control",
-    "tags": [ "Appliances", "LAN", "Multimedia" ],
-    "drivers" : [
+    "tags": [
+        "Appliances",
+        "LAN",
+        "Multimedia"
+    ],
+    "drivers": [
         {
-            "id" : "1111bd2d-76eb-4f0a-b2cc-2b5128a7367b",
+            "id": "ce08efbb-1445-4ba9-90b9-3a507244a81b",
             "name": "LGTV with webOS",
             "description": "Driver to control LG TV devices using webOS websockets.",
             "namespace": "dailous",
@@ -20,7 +24,7 @@
             "required": true
         },
         {
-            "id" : "aa8739d8-7153-4a30-a5d4-479ce8fffa08",
+            "id": "de501152-145d-47da-96bd-24b745d87d6e",
             "name": "LGTV Remote",
             "description": "Component driver to simulate TV Remote button pushes.",
             "namespace": "dailous",
