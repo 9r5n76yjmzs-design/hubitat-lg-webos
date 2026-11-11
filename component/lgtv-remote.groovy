@@ -10,6 +10,8 @@ import groovy.transform.Field
 
 @Field static final String DRIVER_NAME = 'LGTV Remote'
 @Field static final String DRIVER_VERSION = '2.0.0'
+@Field static final Integer MAX_QUEUE = 100
+@Field static final Integer MAX_WAIT_MS = 10000
 @Field static final List<String> BUTTONS = [
     'LEFT',
     'RIGHT',
@@ -98,9 +100,14 @@ void clearQueue() {
 void pushButtons(String websocketURL, String buttonSequence) {
     if (!buttonSequence) return
 
-    // Add to queue
+    // Add to queue, up to MAX_QUEUE items, so a long sequence can't keep the hub busy indefinitely
     List queue = state.queue ?: []
-    queue.addAll buttonSequence.split(' ')
+    List<String> items = buttonSequence.trim().split(/\s+/) as List
+    if (queue.size() + items.size() > MAX_QUEUE) {
+        log_warn "Too many TV Remote buttons queued (limit ${MAX_QUEUE}); sequence ignored"
+        return
+    }
+    queue.addAll items
     state.queue = queue
 
     // Websocket already active; reuse connection
@@ -108,6 +115,7 @@ void pushButtons(String websocketURL, String buttonSequence) {
 
     // Start websocket connection
     try { interfaces.webSocket.close() } catch (e) { }
+    // The TV's certificate is self-signed and Hubitat can't pin it, so it isn't verified. See SECURITY.md.
     interfaces.webSocket.connect websocketURL, ignoreSSLIssues:true
 }
 
@@ -137,11 +145,16 @@ void processNextQueueItem() {
 
     Integer wait = 350
     String item = queue.remove(0)
+    state.queue = queue
 
     // Wait item
     if (item.startsWith('WAIT:')) {
-        state.queue = queue
-        wait = Integer.parseInt item.substring(5)
+        String ms = item.substring(5)
+        if (ms ==~ /\d{1,5}/ && ms.toInteger() <= MAX_WAIT_MS) {
+            wait = ms.toInteger()
+        } else {
+            log_warn "Invalid TV Remote wait: ${item} (use WAIT:0 to WAIT:${MAX_WAIT_MS}). Ignored."
+        }
         runInMillis wait, 'processNextQueueItem'
         return
     }
@@ -160,7 +173,8 @@ void processNextQueueItem() {
 }
 
 void parse(String description) {
-    log_debug "▶ Received message: ${description}"
+    // Only the size is logged: raw messages from the TV are never written to the logs
+    log_debug "▶ Received message (${description?.length() ?: 0} characters)"
 }
 
 // ===================================================================================================================

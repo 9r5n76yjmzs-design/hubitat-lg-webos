@@ -55,11 +55,11 @@ Follow these steps to create a new LG TV device:
 1. Name your device (e.g., Livingroom TV), select a room, then click **Next**.
 1. Click **View device details** to go to the device page.
 1. Select the **Preferences** tab.
-1. Enter the TV IP address, then click **Save**.
+1. Enter the TV's IPv4 address (for example `192.168.1.50`), then click **Save**. Host names aren't accepted.
 1. Approve the notification that appears on your TV screen.
 1. A toast notification should appear briefly on your TV screen saying **Well done! Configuration is now complete**.
 1. Select the **Commands** tab, then refresh the browser page to reload the attributes list.
-1. If the **Current States** section does not populate with multiple attributes, check the Hubitat logs for clues. Debug messages are displayed for 30 minutes, then the log level automatically switches to Info.
+1. If the **Current States** section does not populate with multiple attributes, check the Hubitat logs for clues. The log level starts at Info. To troubleshoot, set it to Debug: debug messages are shown for 30 minutes, then the log level switches back to Info automatically.
 
 ![TV Attributes](img/attributes.png)
 
@@ -96,20 +96,23 @@ The following commands are available:
 
 ### Media control
 - Start, Pause, Stop the current file loaded in the Media Player app
-- Start Video - Play the specified video file in Media Player app
-- Start Web Page - Open the specified URL in Web Browser app
+- Start Video - Play the specified video file in Media Player app (`http://` or `https://` links only)
+- Start Web Page - Open the specified URL in Web Browser app (`http://` or `https://` links only)
 
 ### TV Remote control
 - Orchestrate and execute (simulate) TV Remote button pushes. Example buttons sequence: `MENU WAIT:2000 LEFT ENTER WAIT:1500 DOWN DOWN DOWN BACK`.
 
   See list of all possible buttons [in the source code](component/lgtv-remote.groovy).
 
-  By default, a pause of 350 ms is added between button pushes. You can override this by using the special 'WAIT:xxx' instruction, where xxx = time, in milliseconds, to wait before sending the next button push.
+  By default, a pause of 350 ms is added between button pushes. You can override this by using the special 'WAIT:xxx' instruction, where xxx = time, in milliseconds (0 to 10000), to wait before sending the next button push. Up to 100 buttons and waits can be queued at once.
 
 ### Notifications
 - Device Notification - Display toast or an alert notifications to the TV screen
 
 ## Notes
+
+#### Pairing key
+When the TV accepts pairing, the driver saves the TV's pairing key in the masked **Pairing key** preference. Earlier versions kept it under State Variables; it is moved automatically, and the State Variables copy is deleted once the driver has read the key back from the preference. Hubitat may show the field blank even when it holds a key. To pair again (for example after a TV reset), clear **Pairing key**, click **Save**, and accept the prompt on the TV. The key lets anything on your network control the TV, so don't share it. Hubitat has no encrypted storage: the key is still kept unencrypted on the hub and in hub backups. See [SECURITY.md](SECURITY.md).
 
 #### Wake On LAN
 When the TV is first paired with the Hubitat, the driver will attempt to auto-enable the Wake-On-LAN (WOL) settings on your TV.
