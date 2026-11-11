@@ -23,6 +23,7 @@ import hubitat.device.Protocol
 @Field static final List<String> SOUND_OUTPUT = ['tv_speaker', 'external_arc', 'external_optical', 'bt_soundbar', 'mobile_phone', 'lineout', 'headphone', 'tv_speaker_bluetooth']
 @Field static final Integer MAX_FAST_PING = 20
 @Field static final Integer PROBE_TIMEOUT_SECONDS = 3
+@Field static final String SW_INFO_URI = 'ssap://com.webos.service.update/getCurrentSWInformation'
 
 metadata {
     definition(name:DRIVER_NAME, namespace:'dailous', author:'Michael Dailous', importUrl:'https://raw.githubusercontent.com/9r5n76yjmzs-design/hubitat-lg-webos/main/lgtv-with-webos.groovy') {
@@ -128,6 +129,9 @@ void installed() {
 // Called when the "Save Preferences" button is clicked
 void updated(boolean auto = false) {
     log_info "Saving preferences${auto ? ' (auto)' : ''} ..."
+
+    // Ask for the firmware version again: a TV update may now allow it.
+    if (!auto) state.remove 'swInfoUnavailable'
 
     if (logLevel == null) {
         logLevel = '1'
@@ -243,7 +247,8 @@ void refresh() {
     utils_sendMessage([type:'request', uri:'ssap://tv/getCurrentChannel'])
 
     // These values rarely change, so we only request them on demand
-    utils_sendMessage([type:'request', uri:'ssap://com.webos.service.update/getCurrentSWInformation'])
+    // Skipped once the TV has refused it (401), so the refusal isn't logged as an error on every refresh
+    if (!state.swInfoUnavailable) utils_sendMessage([type:'request', uri:SW_INFO_URI])
     utils_sendMessage([type:'request', uri:'ssap://settings/getSystemSettings', payload:[category:'network', keys: ['deviceName']]])
     utils_sendMessage([type:'request', uri:'ssap://config/getConfigs', payload:[configNames:['tv.nyx.*']]])
     utils_sendMessage([type:'request', uri:'ssap://com.webos.service.connectionmanager/getinfo'])
@@ -596,6 +601,14 @@ void parse(String description) {
 
             // Service not supported on some (old) devices
             if (msg.error == '404 no such service or method') return
+
+            // Some firmware refuses the firmware-version request to clients paired without a signed manifest.
+            // It only fills the fwVersion data value, so note it once and stop asking. Other 401s stay errors.
+            if (msg.error?.startsWith('401') && requestInfo?.uri == SW_INFO_URI) {
+                if (!state.swInfoUnavailable) log_info 'The TV does not allow reading its firmware version (401 insufficient permissions); fwVersion will not be updated'
+                state.swInfoUnavailable = true
+                return
+            }
 
             log_error "▶ Received error message: ${msg.payload?.errorText ? msg.payload?.errorText : msg.error} [id=${responseId ?: 'none'}, request=${requestInfo?.uri ?: requestInfo?.type ?: 'unmatched'}]"
         return
