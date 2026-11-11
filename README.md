@@ -13,7 +13,7 @@ Once you have HPM installed, follow these steps to install the "LGTV with webOS"
 1. In the Hubitat interface, go to **Apps** and select **Hubitat Package Manager**.
 1. Select **Install**, then **Search by Keywords**.
 1. Enter **LGTV** in the search box and click **Next**.
-1. Select **LGTV with webOS by Michael Dailous & Weft** and click **Next**.
+1. Select **LGTV with webOS by Michael Dailous** and click **Next**.
 1. Follow the install instructions.
 
 ### Manual Installation
@@ -115,7 +115,7 @@ The following commands are available:
 When the TV is first paired with the Hubitat, the driver will attempt to auto-enable the Wake-On-LAN (WOL) settings on your TV.
 
 #### Detect TV start
-When the TV is turned on using its remote, it does not broadcast any message to the LAN. To overcome this, the driver pings the TV's IP address at the frequency set in the **Preferences** tab. The default ping interval is 5 minutes, so it can take up to 5 minutes for the driver to detect that the TV was turned on.
+When the TV is turned on using its remote, it does not broadcast any message to the LAN. To overcome this, the driver periodically probes the TV's websocket port (TCP 3001 with SSL, 3000 without) at the interval set with the **Set Ping Interval** command. ICMP ping is not used, so no ICMP firewall rule is needed. The default interval is 5 minutes, so it can take up to 5 minutes for the driver to detect that the TV was turned on.
 
 Have fun!
 

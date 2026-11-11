@@ -3,7 +3,7 @@
     "version": "2.0.0",
     "releaseNotes": "v2.0.0\n - Add webOS TV 23+ pairing compatibility.\n - Restore application and HDMI discovery and control.\n - Add diagnostics and the dailous namespace.",
     "minimumHEVersion": "2.1.9",
-    "author": "Michael Dailous & Weft",
+    "author": "Michael Dailous",
     "dateReleased": "2026-11-01",
     "documentationLink": "https://github.com/9r5n76yjmzs-design/hubitat-lg-webos/blob/main/README.md",
     "communityLink": "https://community.hubitat.com/t/release-lgtv-with-webos/148892",

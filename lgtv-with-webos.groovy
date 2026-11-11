@@ -1,7 +1,7 @@
 /**
  * LGTV with webOS
  *
- * Maintained by Michael Dailous & Weft for webOS TV 23 and later.
+ * Maintained by Michael Dailous for webOS TV 23 and later.
  * Originally developed by Dan Danache.
  *
  * @see https://github.com/9r5n76yjmzs-design/hubitat-lg-webos
@@ -14,7 +14,6 @@ import groovy.transform.Field
 
 import hubitat.device.HubAction
 import hubitat.device.Protocol
-import hubitat.helper.NetworkUtils
 
 @Field static final String DRIVER_NAME = 'LGTV with webOS'
 @Field static final String DRIVER_VERSION = '2.0.0'
@@ -23,9 +22,14 @@ import hubitat.helper.NetworkUtils
 @Field static final List<String> SOUND_MODES = ['aiSoundPlus', 'aiSound', 'standard', 'news', 'music', 'movie', 'sports', 'game']
 @Field static final List<String> SOUND_OUTPUT = ['tv_speaker', 'external_arc', 'external_optical', 'bt_soundbar', 'mobile_phone', 'lineout', 'headphone', 'tv_speaker_bluetooth']
 @Field static final Integer MAX_FAST_PING = 20
+@Field static final Integer PROBE_TIMEOUT_SECONDS = 3
+@Field static final String SW_INFO_URI = 'ssap://com.webos.service.update/getCurrentSWInformation'
+@Field static final String CURRENT_CHANNEL_URI = 'ssap://tv/getCurrentChannel'
+@Field static final String SW_INFO_NOTE = 'firmware version not readable'
+@Field static final String NOT_LIVE_TV_NOTE = 'not watching Live TV'
 
 metadata {
-    definition(name:DRIVER_NAME, namespace:'dailous', author:'Michael Dailous & Weft', importUrl:'https://raw.githubusercontent.com/9r5n76yjmzs-design/hubitat-lg-webos/main/lgtv-with-webos.groovy') {
+    definition(name:DRIVER_NAME, namespace:'dailous', author:'Michael Dailous', importUrl:'https://raw.githubusercontent.com/9r5n76yjmzs-design/hubitat-lg-webos/main/lgtv-with-webos.groovy') {
         capability 'Actuator'
         capability 'Initialize'
         capability 'Refresh'
@@ -129,6 +133,9 @@ void installed() {
 void updated(boolean auto = false) {
     log_info "Saving preferences${auto ? ' (auto)' : ''} ..."
 
+    // Ask for the firmware version again: a TV update may now allow it.
+    if (!auto) state.remove 'swInfoUnavailable'
+
     if (logLevel == null) {
         logLevel = '1'
         device.updateSetting 'logLevel', [value:logLevel, type:'enum']
@@ -185,8 +192,37 @@ void setPingInterval(BigDecimal pingInterval) {
 }
 void pingDevice() {
     if (!ipAddr || "${device.currentValue('websocket', true)}" == 'online') return
-    log_debug "Pinging ${ipAddr} ..."
-    if (NetworkUtils.ping(ipAddr, 1)?.packetsReceived > 0) connect()
+    log_debug "Probing ${ipAddr} ..."
+    probeDevice([source:'scheduled'])
+}
+
+// Reachability probe: an HTTP(S) GET to the TV's websocket port replaces ICMP ping, so detection
+// only needs the port the driver already uses (no ICMP allow rule required).
+private void probeDevice(Map data) {
+    String uri = useSSL ? "https://${ipAddr}:3001/" : "http://${ipAddr}:3000/"
+    log_debug "DIAG PROBE start source=${data.source} retry=${data.currentRetry ?: 0} uri=${uri}"
+    asynchttpGet('probeResponse', [uri:uri, timeout:PROBE_TIMEOUT_SECONDS, ignoreSSLIssues:true], data)
+}
+void probeResponse(response, Map data) {
+    Integer status = null
+    String error = null
+    try { status = response.getStatus() } catch (e) { }
+    try { if (response.hasError()) error = response.getErrorMessage() } catch (e) { }
+    boolean reachable = utils_isProbeReachable(status, error)
+    log_debug "DIAG PROBE result source=${data?.source} retry=${data?.currentRetry ?: 0} status=${status} error=${error ?: 'none'} reachable=${reachable}"
+
+    if (reachable && "${device.currentValue('switch', true)}" != 'on') connect()
+
+    // Fast probing: schedule the next attempt only after this one finished, so requests never overlap
+    if (data?.source == 'fast') runIn 1, 'fastPing', [data:[currentRetry:data.currentRetry]]
+}
+private boolean utils_isProbeReachable(Integer status, String error) {
+    // Any answer from the TV's server (even an HTTP or TLS error) means it is up.
+    // Only "nobody answered" failures count as unreachable.
+    // TODO: refine after observing real DIAG PROBE results on the hub (timeout vs refused vs HTTP error).
+    if (status == 408) return false
+    if (error && error ==~ /(?is).*(timed out|timeout|refused|unreachable|no route|host is down).*/) return false
+    return status != null || error != null
 }
 void logsOff() {
     log_info '⏲️ Automatically reverting log level to "Info"'
@@ -211,10 +247,11 @@ void refresh() {
 
     // We also have subscription for this values
     utils_sendMessage([type:'request', uri:'ssap://audio/getVolume'])
-    utils_sendMessage([type:'request', uri:'ssap://tv/getCurrentChannel'])
+    utils_sendMessage([type:'request', uri:CURRENT_CHANNEL_URI])
 
     // These values rarely change, so we only request them on demand
-    utils_sendMessage([type:'request', uri:'ssap://com.webos.service.update/getCurrentSWInformation'])
+    // Skipped once the TV has refused it (401), so the refusal isn't logged as an error on every refresh
+    if (!state.swInfoUnavailable) utils_sendMessage([type:'request', uri:SW_INFO_URI])
     utils_sendMessage([type:'request', uri:'ssap://settings/getSystemSettings', payload:[category:'network', keys: ['deviceName']]])
     utils_sendMessage([type:'request', uri:'ssap://config/getConfigs', payload:[configNames:['tv.nyx.*']]])
     utils_sendMessage([type:'request', uri:'ssap://com.webos.service.connectionmanager/getinfo'])
@@ -232,21 +269,19 @@ void on() {
     util_wakeOnLan getDataValue('wiredMacAddress')
     if (ipAddr) util_wakeOnLan getMACFromIP(ipAddr)
 
-    // Start fast pinging the IP for a maximum of MAX_FAST_PING times
+    // Start fast probing the TV for a maximum of MAX_FAST_PING times
     runIn 1, 'fastPing', [data:[currentRetry:0]]
 }
 private void fastPing(Map data) {
-    data.currentRetry += 1
-    if (!ipAddr || "${device.currentValue('switch', true)}" == 'on' || data.currentRetry > MAX_FAST_PING) {
-        log_debug 'Fast ping terminated'
+    int currentRetry = (data?.currentRetry ?: 0) + 1
+    if (!ipAddr || "${device.currentValue('switch', true)}" == 'on' || currentRetry > MAX_FAST_PING) {
+        log_debug 'Fast probe terminated'
         return
     }
 
-    log_debug "Fast pinging ${ipAddr}: ${data.currentRetry} / ${MAX_FAST_PING} ..."
-    if (NetworkUtils.ping(ipAddr, 1)?.packetsReceived > 0 && "${device.currentValue('switch', true)}" != 'on') connect()
-
-    // Keep fast-pinging until switch changes to 'on' or MAX_FAST_PING limit is reached
-    runIn 1, 'fastPing', [data:data]
+    // Keep fast-probing (rescheduled from probeResponse) until switch changes to 'on' or MAX_FAST_PING limit is reached
+    log_debug "Fast probing ${ipAddr}: ${currentRetry} / ${MAX_FAST_PING} ..."
+    probeDevice([source:'fast', currentRetry:currentRetry])
 }
 void off() {
     log_debug '🎬 Powering off ...'
@@ -494,7 +529,7 @@ void subscribe(Map data = false) {
 
     // Setup subscriptions
     utils_sendMessage([type:'subscribe', uri:'ssap://audio/getStatus'])
-    utils_sendMessage([type:'subscribe', uri:'ssap://tv/getCurrentChannel'])
+    utils_sendMessage([type:'subscribe', uri:CURRENT_CHANNEL_URI])
     utils_sendMessage([type:'subscribe', uri:'ssap://com.webos.applicationManager/getForegroundAppInfo'])
     utils_sendMessage([type:'subscribe', uri:'ssap://com.webos.media/getForegroundAppInfo'])
     utils_sendMessage([type:'subscribe', uri:'ssap://com.webos.service.tvpower/power/getPowerState'])
@@ -539,7 +574,8 @@ void parse(String description) {
     Map pending = state.diagnosticRequests instanceof Map ? state.diagnosticRequests : [:]
     Map requestInfo = responseId ? pending[responseId] : null
     if (msg.type == 'error') {
-        log_debug "DIAG RX error id=${responseId ?: 'none'} request=${requestInfo?.uri ?: requestInfo?.type ?: 'unmatched'} code=${msg.error ?: msg.payload?.errorCode ?: 'unspecified'}"
+        String note = utils_knownErrorNote(msg, requestInfo)
+        log_debug "DIAG RX error id=${responseId ?: 'none'} request=${requestInfo?.uri ?: requestInfo?.type ?: 'unmatched'} code=${msg.error ?: msg.payload?.errorCode ?: 'unspecified'}${note ? " (expected: ${note})" : ''}"
     } else if (msg.type == 'response' && requestInfo) {
         log_debug "DIAG RX response id=${responseId} request=${requestInfo.uri ?: requestInfo.type} result=${msg.payload?.returnValue}"
     } else if (msg.type == 'registered') {
@@ -569,6 +605,22 @@ void parse(String description) {
 
             // Service not supported on some (old) devices
             if (msg.error == '404 no such service or method') return
+
+            // Some firmware refuses the firmware-version request to clients paired without a signed manifest.
+            // It only fills the fwVersion data value, so note it once and stop asking. Other 401s stay errors.
+            if (utils_knownErrorNote(msg, requestInfo) == SW_INFO_NOTE) {
+                if (!state.swInfoUnavailable) log_info 'The TV does not allow reading its firmware version (401 insufficient permissions); fwVersion will not be updated'
+                state.swInfoUnavailable = true
+                return
+            }
+
+            // The TV answers the current-channel request with "500 Application error" when Live TV isn't the
+            // input being watched. Say so once, until a channel is reported again, instead of logging an error.
+            if (utils_knownErrorNote(msg, requestInfo) == NOT_LIVE_TV_NOTE) {
+                if (!state.notWatchingLiveTv) log_info 'Not watching Live TV, so there is no current channel'
+                state.notWatchingLiveTv = true
+                return
+            }
 
             log_error "▶ Received error message: ${msg.payload?.errorText ? msg.payload?.errorText : msg.error} [id=${responseId ?: 'none'}, request=${requestInfo?.uri ?: requestInfo?.type ?: 'unmatched'}]"
         return
@@ -624,6 +676,7 @@ void parse(String description) {
                 case { contains it, [channelNumber:null] }:
                     String channel = payload.channelNumber
                     String channelName = payload.channelName ?: 'unknown'
+                    state.remove 'notWatchingLiveTv'
                     utils_sendEvent name:'channel', value:channel, descriptionText:"Channel is ${channel}", type:type
                     utils_sendEvent name:'channelName', value:channelName, descriptionText:"Channel name is ${channelName}", type:type
                     return
@@ -798,6 +851,14 @@ private void log_error(String message, String prefix = device.displayName) {
 // ===================================================================================================================
 // Helper methods (keep them simple, keep them dumb)
 // ===================================================================================================================
+
+// Explains TV error responses that are expected in normal use, or returns null for a real error.
+private static String utils_knownErrorNote(Map msg, Map requestInfo) {
+    String code = msg.error?.toString() ?: ''
+    if (code.startsWith('401') && requestInfo?.uri == SW_INFO_URI) return SW_INFO_NOTE
+    if (code.startsWith('500') && requestInfo?.uri == CURRENT_CHANNEL_URI) return NOT_LIVE_TV_NOTE
+    return null
+}
 
 private void utils_sendMessage(Map message, boolean checkState = true) {
     if (!ipAddr) {
