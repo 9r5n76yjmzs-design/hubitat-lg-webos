@@ -11,10 +11,13 @@ HPM is an app that allows you to easily install and update custom drivers and ap
 Once you have HPM installed, follow these steps to install the "LGTV with webOS" driver:
 
 1. In the Hubitat interface, go to **Apps** and select **Hubitat Package Manager**.
-1. Select **Install**, then **Search by Keywords**.
-1. Enter **LGTV** in the search box and click **Next**.
-1. Select **LGTV with webOS by Michael Dailous** and click **Next**.
+1. Select **Install**, then **From a URL**.
+1. Enter `https://raw.githubusercontent.com/9r5n76yjmzs-design/hubitat-lg-webos/main/packageManifest.json` and click **Next**.
 1. Follow the install instructions.
+
+This fork isn't in HPM's keyword search, which only lists packages in HPM's public directory. HPM can only install while this repository is public.
+
+**Upgrading from Dan Danache's driver (namespace `dandanache`):** this fork uses its own namespace and package, so it installs alongside the original. After installing, open each TV device, change **Type** to the new **LGTV with webOS** driver, click **Save**, then remove the original package.
 
 ### Manual Installation
 If you prefer not to use HPM, you can manually install the drivers by importing the driver code from GitHub:
@@ -121,6 +124,14 @@ When the TV is first paired with the Hubitat, the driver will attempt to auto-en
 When the TV is turned on using its remote, it does not broadcast any message to the LAN. To overcome this, the driver periodically probes the TV's websocket port (TCP 3001 with SSL, 3000 without) at the interval set with the **Set Ping Interval** command. ICMP ping is not used, so no ICMP firewall rule is needed. The default interval is 5 minutes, so it can take up to 5 minutes for the driver to detect that the TV was turned on.
 
 Have fun!
+
+---
+
+## Known limitations (2.0.0)
+
+- **Acceptance tests not complete:** LG-06 (power off/on and standby; Wake-on-LAN power-on did not work on the test TV), LG-07 (network drop and recovery) and LG-08 (internet down, home network up).
+- **The TV's certificate isn't verified** until a private certificate store is available. See [SECURITY.md](SECURITY.md).
+- **Tested on one webOS 23+ TV.** Other models and firmware versions may behave differently.
 
 ---
 

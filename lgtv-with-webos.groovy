@@ -105,7 +105,7 @@ metadata {
                 LGTV with webOS <small>v${DRIVER_VERSION}</small><br>
                 <small><div>
                 • <a href="https://github.com/9r5n76yjmzs-design/hubitat-lg-webos/blob/main/README.md" target="_blank" rel="noopener noreferrer">driver details</a><br>
-                • <a href="https://community.hubitat.com/t/release-lgtv-with-webos/148892" target="_blank" rel="noopener noreferrer">community page</a><br>
+                • <a href="https://github.com/9r5n76yjmzs-design/hubitat-lg-webos/issues" target="_blank" rel="noopener noreferrer">questions and issues</a><br>
                 </div></small>
             </div>
             """
