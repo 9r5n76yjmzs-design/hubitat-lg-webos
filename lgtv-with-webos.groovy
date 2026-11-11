@@ -27,6 +27,25 @@ import hubitat.device.Protocol
 @Field static final String CURRENT_CHANNEL_URI = 'ssap://tv/getCurrentChannel'
 @Field static final String SW_INFO_NOTE = 'firmware version not readable'
 @Field static final String NOT_LIVE_TV_NOTE = 'not watching Live TV'
+// Least privilege: only the permissions this driver's commands and status reports use. Permissions are
+// granted at pairing, so a TV paired by an earlier version keeps its broader grant until it is paired again
+// (clear the Pairing key preference and save). Not requested any more, because nothing here uses them:
+// recording and timers, channel editing (skip, block, delete, group, scan, favorites), Bluetooth, user info,
+// storage devices, program info, content state, current time, country, launcher channels, set-top box
+// control, and the ACR (viewing-analytics) token.
+@Field static final List<String> PAIRING_PERMISSIONS = [
+    'LAUNCH', 'LAUNCH_WEBAPP', 'APP_TO_APP', 'CLOSE', 'TEST_OPEN', 'TEST_PROTECTED',  // apps, browser, media player
+    'CONTROL_AUDIO',                                                                   // volume and mute
+    'CONTROL_DISPLAY', 'CONTROL_TV_SCREEN', 'CONTROL_TV_STANBY',                        // screen on/off, screen saver
+    'CONTROL_POWER', 'CONTROL_TV_POWER', 'READ_POWER_STATE',                            // power and screen state
+    'CONTROL_INPUT_JOYSTICK', 'CONTROL_MOUSE_AND_KEYBOARD', 'CONTROL_INPUT_TEXT',       // TV Remote child device
+    'CONTROL_INPUT_MEDIA_PLAYBACK',                                                    // play, pause, stop
+    'CONTROL_INPUT_TV', 'READ_CURRENT_CHANNEL', 'READ_TV_CHANNEL_LIST',                // Live TV channels
+    'READ_APP_STATUS', 'READ_RUNNING_APPS', 'READ_INSTALLED_APPS', 'READ_INPUT_DEVICE_LIST', // activities
+    'READ_SETTINGS', 'READ_NETWORK_STATE', 'READ_UPDATE_INFO',                         // picture/sound, MAC, firmware
+    'CONTROL_WOL',                                                                     // enable Wake on LAN
+    'WRITE_NOTIFICATION_TOAST'                                                         // notifications
+]
 
 metadata {
     definition(name:DRIVER_NAME, namespace:'dailous', author:'Michael Dailous', importUrl:'https://raw.githubusercontent.com/9r5n76yjmzs-design/hubitat-lg-webos/main/lgtv-with-webos.groovy') {
@@ -552,7 +571,7 @@ void register() {
             manifest: [
                 appVersion: '1.1',
                 manifestVersion: 1,
-                permissions: ['LAUNCH', 'LAUNCH_WEBAPP', 'APP_TO_APP', 'CLOSE', 'TEST_OPEN', 'TEST_PROTECTED', 'CONTROL_AUDIO', 'CONTROL_DISPLAY', 'CONTROL_INPUT_JOYSTICK', 'CONTROL_INPUT_MEDIA_RECORDING', 'CONTROL_INPUT_MEDIA_PLAYBACK', 'CONTROL_INPUT_TV', 'CONTROL_POWER', 'READ_APP_STATUS', 'READ_CURRENT_CHANNEL', 'READ_INPUT_DEVICE_LIST', 'READ_NETWORK_STATE', 'READ_RUNNING_APPS', 'READ_TV_CHANNEL_LIST', 'WRITE_NOTIFICATION_TOAST', 'READ_POWER_STATE', 'READ_COUNTRY_INFO', 'READ_SETTINGS', 'CONTROL_TV_SCREEN', 'CONTROL_TV_STANBY', 'CONTROL_FAVORITE_GROUP', 'CONTROL_USER_INFO', 'CHECK_BLUETOOTH_DEVICE', 'CONTROL_BLUETOOTH', 'CONTROL_TIMER_INFO', 'STB_INTERNAL_CONNECTION', 'CONTROL_RECORDING', 'READ_RECORDING_STATE', 'WRITE_RECORDING_LIST', 'READ_RECORDING_LIST', 'READ_RECORDING_SCHEDULE', 'WRITE_RECORDING_SCHEDULE', 'READ_STORAGE_DEVICE_LIST', 'READ_TV_PROGRAM_INFO', 'CONTROL_BOX_CHANNEL', 'READ_TV_ACR_AUTH_TOKEN', 'READ_TV_CONTENT_STATE', 'READ_TV_CURRENT_TIME', 'ADD_LAUNCHER_CHANNEL', 'SET_CHANNEL_SKIP', 'RELEASE_CHANNEL_SKIP', 'CONTROL_CHANNEL_BLOCK', 'DELETE_SELECT_CHANNEL', 'CONTROL_CHANNEL_GROUP', 'SCAN_TV_CHANNELS', 'CONTROL_TV_POWER', 'CONTROL_WOL', 'READ_INSTALLED_APPS', 'READ_UPDATE_INFO', 'CONTROL_INPUT_TEXT', 'CONTROL_MOUSE_AND_KEYBOARD']
+                permissions: PAIRING_PERMISSIONS
             ]
         ]
     ], false)
