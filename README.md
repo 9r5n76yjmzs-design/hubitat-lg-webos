@@ -93,9 +93,9 @@ The following commands are available:
 - Set Picture (brightness, contrast, color, backlight, and picture mode)
 
 ### App control
-- Get All Activities - Populate the **Activities** attribute with available options for the **Start Activity** command
+- Get All Activities - Populate the **Activities** attribute with available options for the **Start Activity** command. The driver also does this each time it connects to the TV
 - Get Current Activity - Not actually needed as the current activity (running app) is automatically detected
-- Start Activity - Start the specified app on the TV
+- Start Activity - Start the specified app or input on the TV, by its name in **Activities** (or by its TV app ID). Inputs named `HDMI 1`, `HDMI 2` and so on work even when the list is out of date. For a name the TV doesn't list, the driver gets the list again and tries once more after 5 seconds, then logs a warning
 
 ### Media control
 - Start, Pause, Stop the current file loaded in the Media Player app

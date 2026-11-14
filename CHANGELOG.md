@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+Driver 2.0.1. Not yet tested on a hub.
+
+### Fixed
+- **Start Activity** could fail with `500 Application error` because the driver's activity list had lost the TV's inputs, and the driver then sent the name (such as `HDMI 4`) to the TV as an app ID. The TV's inputs and apps are now kept apart and each is replaced only when the TV answers, so the list is never emptied while waiting and one answer can't overwrite the other. Lists saved by 2.0.0 are still used until both new lists arrive.
+- **Start Activity** never sends a name to the TV as an app ID any more. `HDMI n` maps to the TV's standard input ID; any other unknown name makes the driver get the list again and try once more, then log a warning.
+
+### Changed
+- The driver gets the TV's inputs and apps each time it connects to the TV.
+- Input and app names from the TV have angle brackets removed when they are stored, as other TV-supplied text already did.
+
 ## [2.0.0] - 2026-11-11
 First release of this fork, maintained by Michael Dailous for webOS TV 23 and later. Based on Dan Danache's 1.8.3.
 
