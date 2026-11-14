@@ -16,7 +16,7 @@ import hubitat.device.HubAction
 import hubitat.device.Protocol
 
 @Field static final String DRIVER_NAME = 'LGTV with webOS'
-@Field static final String DRIVER_VERSION = '2.0.0'
+@Field static final String DRIVER_VERSION = '2.0.1'
 
 @Field static final List<String> PICTURE_MODES = ['cinema', 'eco', 'expert1', 'expert2', 'game', 'normal', 'photo', 'sports', 'technicolor', 'vivid', 'hdrEffect', 'filmMaker', 'hdrCinema']
 @Field static final List<String> SOUND_MODES = ['aiSoundPlus', 'aiSound', 'standard', 'news', 'music', 'movie', 'sports', 'game']
@@ -27,6 +27,10 @@ import hubitat.device.Protocol
 @Field static final String CURRENT_CHANNEL_URI = 'ssap://tv/getCurrentChannel'
 @Field static final String SW_INFO_NOTE = 'firmware version not readable'
 @Field static final String NOT_LIVE_TV_NOTE = 'not watching Live TV'
+// Activities the TV doesn't list itself (app ID → label).
+@Field static final Map<String, String> BUILT_IN_ACTIVITIES = ['com.webos.app.home':'Home', 'com.webos.app.livetv':'Live TV', 'com.webos.app.miracast':'Miracast']
+// How long Start Activity waits for the TV's lists before trying an unknown activity again.
+@Field static final Integer ACTIVITY_RETRY_SECONDS = 5
 // Least privilege: only the permissions this driver's commands and status reports use. Permissions are
 // granted at pairing, so a TV paired by an earlier version keeps its broader grant until it is paired again
 // (clear the Pairing key preference and save). Not requested any more, because nothing here uses them:
@@ -147,7 +151,6 @@ void installed() {
     log_warn 'Installing device ...'
 
     // Init state
-    state.activities = [:]
     utils_sendEvent name:'switch', value:'off', descriptionText:'Power initialized to off', type:'digital'
     utils_sendEvent name:'websocket', value:'offline', descriptionText:'Websocket initialized to offline', type:'digital'
     setPingInterval 5
@@ -374,13 +377,8 @@ void deviceNotification(String text, String type = 'Toast') {
 void getAllActivities() {
     log_debug '🎬 Getting all activities ...'
 
-    // Remove old activities
-    Map<String, String> activities = [:]
-    activities['com.webos.app.home'] = 'Home'
-    activities['com.webos.app.livetv'] = 'Live TV'
-    activities['com.webos.app.miracast'] = 'Miracast'
-    state.activities = activities
-
+    // The TV answers with two lists, inputs and apps. Each is kept in its own state value and replaced only when
+    // its answer arrives, so the activities never go missing while waiting and one answer can't overwrite the other.
     utils_sendMessage([type:'request', uri:'ssap://tv/getExternalInputList'])
     utils_sendMessage([type:'request', uri:'ssap://com.webos.applicationManager/listLaunchPoints'])
 }
@@ -389,8 +387,27 @@ void getCurrentActivity() {
     utils_sendMessage([type:'request', uri:'ssap://com.webos.applicationManager/getForegroundAppInfo'])
 }
 void startActivity(String activityname) {
-    String appId = state.activities.find { it.value == activityname }?.key ?: activityname
-    log_debug "🎬 Starting activity: [${activityname}] (${appId}) ..."
+    String appId = utils_activityAppId(activityname)
+    if (!appId) {
+        // Not in the TV's lists: get them again, then try once more. A name is never sent to the TV as an app ID.
+        log_info "🎬 '${activityname}' is not in the TV's activity list; getting the list again before starting it"
+        getAllActivities()
+        runIn ACTIVITY_RETRY_SECONDS, 'retryStartActivity', [data:[name:activityname]]
+        return
+    }
+    utils_launchActivity(activityname, appId)
+}
+void retryStartActivity(Map data) {
+    String name = data?.name as String
+    String appId = utils_activityAppId(name)
+    if (!appId) {
+        log_warn "🎬 Not starting '${name}': the TV doesn't list it. Check the name, or run Get All Activities while the TV is on"
+        return
+    }
+    utils_launchActivity(name, appId)
+}
+private void utils_launchActivity(String name, String appId) {
+    log_debug "🎬 Starting activity: [${name}] (${appId}) ..."
     utils_sendMessage([type:'request', uri:'ssap://system.launcher/launch', payload:[id:appId]])
 }
 
@@ -424,7 +441,7 @@ void speak(String text, BigDecimal volume = null, String voice = null) {
     log_debug "Sending TTS file ${result} ..."
     // utils_sendMessage([type:'request', uri:'ssap://com.webos.applicationManager/open', payload:[target:result.uri, mime:'audio/mp3']])
     utils_sendMessage([type:'request', uri:'ssap://com.webos.applicationManager/launch', payload:[
-        id: state.activities.find { it.value == 'Media Player' || it.value == 'Music' }?.key ?: 'com.webos.app.mediadiscovery',
+        id: utils_activities().find { it.value == 'Media Player' || it.value == 'Music' }?.key ?: 'com.webos.app.mediadiscovery',
         params: [payload: [[
             fullPath:result.uri, mediaType:'MUSIC', deviceType:'DMR', lastPlayPosition:0,
             fileName: "Message from ${location.hub.name}",
@@ -481,7 +498,7 @@ void startVideo(String url) {
 
     // https://gist.github.com/aabytt/bddbb1bcf031a050d89a89aeee3a6737#playling-a-link-with-standard-lg-webos-player
     utils_sendMessage([type:'request', uri:'ssap://com.webos.applicationManager/launch', payload:[
-        id: state.activities.find { it.value == 'Media Player' || it.value == 'Photo & Video' }?.key ?: 'com.webos.app.mediadiscovery',
+        id: utils_activities().find { it.value == 'Media Player' || it.value == 'Photo & Video' }?.key ?: 'com.webos.app.mediadiscovery',
         params: [payload: [[fullPath:url, mediaType:'VIDEO', deviceType:'DMR', lastPlayPosition:0]]]
     ]])
 }
@@ -703,6 +720,9 @@ void parse(String description) {
 
             // Auto-sync device state with Hubitat
             runIn 7, 'refresh'
+
+            // Get the TV's inputs and apps again on every (re)connect, so Start Activity doesn't rely on an old list
+            runIn 9, 'getAllActivities'
             return
 
         // TV sent a response to a command sent by us
@@ -745,8 +765,9 @@ void parse(String description) {
 
                 case { contains it, [appId:null] }:
                     utils_sendEvent name:'switch', value:'on', descriptionText:'Power is on', type:type
-                    String currentActivity = state.activities?.find { it.key == payload.appId }?.value ?: payload.appId?.toString() ?: 'unknown'
-                    log_debug "DIAG foreground appId=${payload.appId ?: 'none'} mappedActivity=${currentActivity} knownActivities=${state.activities?.size() ?: 0}"
+                    Map<String, String> known = utils_activities()
+                    String currentActivity = known[payload.appId as String] ?: payload.appId?.toString() ?: 'unknown'
+                    log_debug "DIAG foreground appId=${payload.appId ?: 'none'} mappedActivity=${currentActivity} knownActivities=${known.size()}"
                     utils_sendEvent name:'currentActivity', value:currentActivity, descriptionText:"Current activity is ${currentActivity}", type:type
                     return
 
@@ -780,17 +801,19 @@ void parse(String description) {
 
                 // ssap://tv/getExternalInputList (request)
                 case { contains it, [devices:null] }:
-                    Map activities = state.activities ?: [:]
-                    payload.devices.each { activities[it.appId] = it.label }
-                    state.activities = activities
+                    Map<String, String> inputs = [:]
+                    payload.devices.each { inputs[it.appId as String] = utils_plainText(it.label as String) }
+                    state.activityInputs = inputs
+                    utils_dropOldActivities()
                     runIn 5, 'updateActivities'
                     return
 
                 // ssap://com.webos.applicationManager/listLaunchPoints (request)
                 case { contains it, [launchPoints:null] }:
-                    Map activities = state.activities ?: [:]
-                    payload.launchPoints.each { activities[it.id] = it.title }
-                    state.activities = activities
+                    Map<String, String> apps = [:]
+                    payload.launchPoints.each { apps[it.id as String] = utils_plainText(it.title as String) }
+                    state.activityApps = apps
+                    utils_dropOldActivities()
                     runIn 5, 'updateActivities'
                     return
 
@@ -1046,8 +1069,38 @@ private void util_wakeOnLan(String macAddr) {
     log_debug "◀ Sending LAN command: ${cmd}"
     sendHubCommand(new HubAction(cmd, Protocol.LAN))
 }
+// All known activities as app ID → label: the built-in ones, then the TV's apps, then its inputs.
+// Until both of the TV's lists have arrived, a table saved by 2.0.0 or earlier fills the gaps.
+private Map<String, String> utils_activities() {
+    Map<String, String> all = [:]
+    all.putAll(BUILT_IN_ACTIVITIES)
+    if ((state.activityApps == null || state.activityInputs == null) && state.activities instanceof Map) all.putAll(state.activities as Map)
+    if (state.activityApps instanceof Map) all.putAll(state.activityApps as Map)
+    if (state.activityInputs instanceof Map) all.putAll(state.activityInputs as Map)
+    return all
+}
+
+// The old single table is removed once both of the TV's lists are kept separately.
+private void utils_dropOldActivities() {
+    if (state.activityApps != null && state.activityInputs != null) state.remove 'activities'
+}
+
+// The TV app ID for an activity: found by its label in the TV's lists; otherwise 'HDMI n' maps to the TV's standard
+// input ID com.webos.app.hdmin, and a name that already is an app ID (such as com.webos.app.hdmi4) is used as it is.
+// Returns null for anything else, so a label is never sent to the TV as an app ID.
+private String utils_activityAppId(String name) {
+    if (name == null || name.trim() == '') return null
+    String wanted = name.trim()
+    Map<String, String> known = utils_activities()
+    String appId = known.find { it.value == wanted }?.key
+    if (appId) return appId
+    if (wanted ==~ /(?i)HDMI\s*\d{1,2}/) return 'com.webos.app.hdmi' + wanted.replaceAll(/\D/, '')
+    if (known.containsKey(wanted) || wanted ==~ /[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)+/) return wanted
+    return null
+}
+
 void updateActivities() {
-    List<String> activities = state.activities*.value.sort()
+    List<String> activities = utils_activities().values().toList().unique().sort()
     utils_sendEvent name:'activities', value:new JsonBuilder(activities), descriptionText:"Supported activities is ${activities}", type:type
 }
 
